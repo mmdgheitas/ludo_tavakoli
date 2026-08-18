@@ -1,0 +1,9 @@
+/.gradle
+/captures/
+/local.properties
+GeneratedPluginRegistrant.java
+
+# Never commit Android signing material.
+key.properties
+**/*.keystore
+**/*.jks

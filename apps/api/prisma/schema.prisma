@@ -1,0 +1,298 @@
+generator client {
+  provider   = "prisma-client-js"
+  engineType = "client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  PLAYER
+  SUPPORT
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  BANNED
+  DELETED
+}
+
+enum GameMode {
+  OFFLINE_2P
+  OFFLINE_4P
+  ONLINE_2P
+  ONLINE_4P
+}
+
+enum GameStatus {
+  WAITING
+  ACTIVE
+  FINISHED
+  ABANDONED
+  CANCELLED
+}
+
+enum Team {
+  BLUE
+  RED
+  GREEN
+  YELLOW
+}
+
+enum ItemType {
+  PIECE_SKIN
+  AVATAR
+  FATTAH
+  SPECIAL
+}
+
+enum CurrencyType {
+  COIN
+  IRR
+}
+
+enum TransactionType {
+  GAME_REWARD
+  DAILY_REWARD
+  ADMIN_REWARD
+  SHOP_PURCHASE
+  VIP_PURCHASE
+  FATTAH_PURCHASE
+  PAYMENT
+  REFUND
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentProvider {
+  CAFE_BAZAAR
+  MYKET
+}
+
+model User {
+  id               String              @id @default(uuid()) @db.Uuid
+  username         String              @unique @db.VarChar(32)
+  avatarUrl        String?             @db.VarChar(512)
+  coinBalance      Int                 @default(500)
+  fattahBalance    Int                 @default(0)
+  vipExpiresAt     DateTime?
+  role             UserRole            @default(PLAYER)
+  status           UserStatus          @default(ACTIVE)
+  passwordHash     String?
+  deviceId         String?             @unique @db.VarChar(128)
+  lastSeenAt       DateTime             @default(now())
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  refreshSessions  RefreshSession[]
+  gameParticipants GameParticipant[]
+  wonGames         Game[]              @relation("GameWinner")
+  inventory        Inventory[]
+  transactions     WalletTransaction[]
+  vipPurchases     VipPurchase[]
+  payments         Payment[]
+  fattahUsages     FattahUsage[]
+  dailyRewards     DailyReward[]
+  adminActions     AdminAudit[]         @relation("AdminActor")
+
+  @@index([createdAt])
+  @@index([lastSeenAt])
+  @@index([status])
+}
+
+model RefreshSession {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  tokenHash String   @unique
+  userAgent String?  @db.VarChar(256)
+  ipAddress String?  @db.VarChar(64)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model Game {
+  id           String            @id @default(uuid()) @db.Uuid
+  mode         GameMode
+  status       GameStatus        @default(WAITING)
+  state        Json
+  version      Int               @default(0)
+  winnerId     String?           @db.Uuid
+  rewardCoins  Int               @default(0)
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  winner       User?             @relation("GameWinner", fields: [winnerId], references: [id])
+  participants GameParticipant[]
+  fattahUsages FattahUsage[]
+
+  @@index([status, createdAt])
+  @@index([winnerId])
+}
+
+model GameParticipant {
+  id          String   @id @default(uuid()) @db.Uuid
+  gameId      String   @db.Uuid
+  userId      String   @db.Uuid
+  team        Team
+  placement   Int?
+  score       Int      @default(0)
+  disconnectedAt DateTime?
+  joinedAt    DateTime @default(now())
+  game        Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, userId])
+  @@unique([gameId, team])
+  @@index([userId, joinedAt])
+}
+
+model Item {
+  id          String      @id @default(uuid()) @db.Uuid
+  sku         String      @unique @db.VarChar(64)
+  nameFa      String      @db.VarChar(100)
+  descriptionFa String?   @db.VarChar(500)
+  type        ItemType
+  coinPrice   Int?
+  realPriceIrr Int?
+  metadata    Json?
+  active      Boolean     @default(true)
+  sortOrder   Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  inventories Inventory[]
+
+  @@index([active, type, sortOrder])
+}
+
+model Inventory {
+  userId    String   @db.Uuid
+  itemId    String   @db.Uuid
+  quantity  Int      @default(0)
+  equipped  Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  item      Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@id([userId, itemId])
+}
+
+model WalletTransaction {
+  id                    String            @id @default(uuid()) @db.Uuid
+  userId                String            @db.Uuid
+  type                  TransactionType
+  status                TransactionStatus @default(PENDING)
+  currency              CurrencyType      @default(COIN)
+  amount                Int
+  balanceAfter          Int?
+  idempotencyKey        String            @unique @db.VarChar(128)
+  referenceId           String?           @db.VarChar(128)
+  metadata              Json?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  user                  User              @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+}
+
+model VipPurchase {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  startDate   DateTime
+  expireDate  DateTime
+  priceIrr    Int
+  paymentId   String?  @unique @db.Uuid
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  payment     Payment? @relation(fields: [paymentId], references: [id])
+
+  @@index([userId, expireDate])
+}
+
+model Payment {
+  id                    String             @id @default(uuid()) @db.Uuid
+  userId                String             @db.Uuid
+  provider              PaymentProvider
+  productSku            String             @db.VarChar(100)
+  purchaseTokenHash     String             @unique
+  providerTransactionId String?            @unique @db.VarChar(128)
+  amountIrr             Int
+  status                TransactionStatus  @default(PENDING)
+  verifiedAt            DateTime?
+  rawVerification       Json?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  user                   User               @relation(fields: [userId], references: [id], onDelete: Restrict)
+  vipPurchase            VipPurchase?
+
+  @@index([userId, createdAt])
+  @@index([provider, status])
+}
+
+model FattahUsage {
+  id        String   @id @default(uuid()) @db.Uuid
+  gameId    String   @db.Uuid
+  userId    String   @db.Uuid
+  targetTokenId String @db.VarChar(32)
+  createdAt DateTime @default(now())
+  game      Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([gameId, userId])
+}
+
+model QuickChat {
+  id        String   @id @default(uuid()) @db.Uuid
+  textFa    String   @db.VarChar(80)
+  emoji     String?  @db.VarChar(16)
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active, sortOrder])
+}
+
+model DailyReward {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  rewardDay DateTime @db.Date
+  coins     Int
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, rewardDay])
+}
+
+model AppSetting {
+  key       String   @id @db.VarChar(64)
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+model AdminAudit {
+  id        String   @id @default(uuid()) @db.Uuid
+  actorId   String   @db.Uuid
+  action    String   @db.VarChar(100)
+  targetType String  @db.VarChar(64)
+  targetId  String?  @db.VarChar(128)
+  metadata  Json?
+  ipAddress String?  @db.VarChar(64)
+  createdAt DateTime @default(now())
+  actor     User     @relation("AdminActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([actorId, createdAt])
+  @@index([targetType, targetId])
+}

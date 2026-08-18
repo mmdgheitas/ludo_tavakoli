@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+html, body { min-height: 100%; }
+body {
+  margin: 0;
+  color: #f8f5ff;
+  background:
+    radial-gradient(circle at 86% -10%, rgba(47, 200, 179, .12), transparent 30rem),
+    radial-gradient(circle at 3% 90%, rgba(244, 184, 68, .08), transparent 28rem),
+    #151124;
+  font-family: Tahoma, Arial, sans-serif;
+}
+button, input { font: inherit; }
+::selection { background: rgba(47, 200, 179, .35); }
+
+@layer components {
+  .panel { @apply rounded-3xl border border-line bg-panel shadow-panel; }
+  .eyebrow { @apply text-[11px] font-bold tracking-wide text-muted; }
+  .table-cell { @apply whitespace-nowrap px-5 py-4 text-sm; }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "manche-irani",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": ["apps/api", "apps/admin"],
+  "scripts": {
+    "dev:api": "npm run start:dev --workspace=@manche-irani/api",
+    "dev:admin": "npm run dev --workspace=@manche-irani/admin",
+    "build": "npm run build --workspace=@manche-irani/api && npm run build --workspace=@manche-irani/admin",
+    "test": "npm run test --workspace=@manche-irani/api",
+    "lint": "npm run lint --workspace=@manche-irani/api && npm run lint --workspace=@manche-irani/admin",
+    "db:generate": "npm run prisma:generate --workspace=@manche-irani/api",
+    "db:migrate": "npm run prisma:migrate --workspace=@manche-irani/api",
+    "db:seed": "npm run prisma:seed --workspace=@manche-irani/api"
+  },
+  "engines": { "node": ">=20.19" },
+  "overrides": { "deepmerge-ts": "8.0.1" }
+}

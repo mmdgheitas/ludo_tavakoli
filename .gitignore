@@ -1,0 +1,37 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+key.properties
+
+# Node
+node_modules/
+.next/
+dist/
+coverage/
+*.tsbuildinfo
+npm-debug.log*
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+build/
+android/local.properties
+android/.gradle/
+**/ios/Pods/
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# Local data
+*.db
+*.sqlite
+backups/

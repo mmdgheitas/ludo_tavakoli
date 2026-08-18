@@ -1,0 +1,65 @@
+// android/app/build.gradle
+
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
+// Load the keystore properties
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = file("../../key.properties")
+def hasKeyProperties = keystorePropertiesFile.exists()
+if (hasKeyProperties) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+def isReleaseBuild = gradle.startParameter.taskNames.any { it.toLowerCase().contains("release") }
+if (isReleaseBuild && !hasKeyProperties) {
+    throw new GradleException("Release signing is not configured. Add key.properties through the secure build environment.")
+}
+
+
+android {
+    namespace = "ir.manche.game"
+    compileSdk = 35  // Override Flutter's default to target API 35
+    ndkVersion = "27.1.12297006"
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+    }
+    kotlinOptions {
+        jvmTarget = JavaVersion.VERSION_1_8
+    }
+    defaultConfig {
+        applicationId = "ir.manche.game"
+        minSdkVersion 21
+        targetSdk = 35  // Override Flutter's default to target API 35
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
+    }
+    signingConfigs {
+        if (hasKeyProperties) {
+            release {
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+            }
+        }
+    }
+    buildTypes {
+        release {
+            if (hasKeyProperties) {
+                signingConfig signingConfigs.release
+            }
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+flutter {
+    source = "../.."
+}
