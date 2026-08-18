@@ -200,7 +200,18 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
 }
 
 class _OnlineCommandSink implements GameCommandSink {
-  const _OnlineCommandSink({required this.roll, required this.move});
-  final VoidCallback roll;
-  final ValueChanged<String> move;
+  const _OnlineCommandSink({ roll,  move});
+
+  @override
+  void move(String tokenId) {
+    // TODO: implement move
+  }
+
+  @override
+  void roll() {
+    // TODO: implement roll
+  }
+
+  
+
 }

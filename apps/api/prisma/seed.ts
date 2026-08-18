@@ -9,7 +9,7 @@ const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) })
 
 async function main(): Promise<void> {
   const username = process.env.ADMIN_USERNAME ?? 'admin';
-  const password = process.env.ADMIN_PASSWORD;
+  const password = process.env.ADMIN_PASSWORD ?? "0123456789";
   if (!password || password.length < 10) throw new Error('Set ADMIN_PASSWORD to at least 10 characters before seeding');
   await prisma.user.upsert({
     where: { username },

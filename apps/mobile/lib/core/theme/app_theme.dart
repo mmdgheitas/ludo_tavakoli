@@ -29,7 +29,7 @@ ThemeData buildAppTheme() {
     colorScheme: scheme,
     scaffoldBackgroundColor: AppColors.ink,
     fontFamily: 'sans-serif',
-    cardTheme: const CardTheme(
+    cardTheme: const CardThemeData(
       color: AppColors.card,
       elevation: 0,
       margin: EdgeInsets.zero,

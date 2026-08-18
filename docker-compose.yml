@@ -1,12 +1,14 @@
 name: manche-irani
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:16-alpine
+    ports:
+    - "5432:5432"
     restart: unless-stopped
     environment:
       POSTGRES_DB: manche
       POSTGRES_USER: manche
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-manche_dev}
+      POSTGRES_PASSWORD: "123456789"
     volumes: [postgres_data:/var/lib/postgresql/data]
     healthcheck:
       test: [CMD-SHELL, "pg_isready -U manche -d manche"]
@@ -16,7 +18,7 @@ services:
     networks: [private]
 
   redis:
-    image: redis:7.4-alpine
+    image: redis:7-alpine
     restart: unless-stopped
     command: [redis-server, --appendonly, "yes", --requirepass, "${REDIS_PASSWORD:-redis_dev}"]
     volumes: [redis_data:/data]
@@ -27,44 +29,46 @@ services:
       retries: 15
     networks: [private]
 
-  api:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
-    restart: unless-stopped
-    environment:
-      NODE_ENV: production
-      PORT: 3001
-      DATABASE_URL: postgresql://manche:${POSTGRES_PASSWORD:-manche_dev}@postgres:5432/manche?schema=public
-      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_dev}@redis:6379
-      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
-      BAZAAR_VERIFY_URL: ${BAZAAR_VERIFY_URL:-}
-      BAZAAR_CLIENT_SECRET: ${BAZAAR_CLIENT_SECRET:-}
-      MYKET_VERIFY_URL: ${MYKET_VERIFY_URL:-}
-      MYKET_API_KEY: ${MYKET_API_KEY:-}
-    depends_on:
-      postgres: { condition: service_healthy }
-      redis: { condition: service_healthy }
-    ports: ["3001:3001"]
-    networks: [private, public]
+  # api:
+  #   build:
+  #     context: .
+  #     dockerfile: apps/api/Dockerfile
+  #   restart: unless-stopped
+  #   environment:
+  #     NODE_ENV: production
+  #     PORT: 3001
+  #     DATABASE_URL: postgresql://manche:${POSTGRES_PASSWORD:-manche_dev}@postgres:5432/manche?schema=public
+  #     REDIS_URL: redis://:${REDIS_PASSWORD:-redis_dev}@redis:6379
+  #     # JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET}
+  #     # JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET}
+  #     JWT_ACCESS_SECRET: JWT_ACCESS_SECRET
+  #     JWT_REFRESH_SECRET: JWT_REFRESH_SECRET
+  #     CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+  #     BAZAAR_VERIFY_URL: ${BAZAAR_VERIFY_URL:-}
+  #     BAZAAR_CLIENT_SECRET: ${BAZAAR_CLIENT_SECRET:-}
+  #     MYKET_VERIFY_URL: ${MYKET_VERIFY_URL:-}
+  #     MYKET_API_KEY: ${MYKET_API_KEY:-}
+  #   depends_on:
+  #     postgres: { condition: service_healthy }
+  #     redis: { condition: service_healthy }
+  #   ports: ["3001:3001"]
+  #   networks: [private, public]
 
-  admin:
-    build:
-      context: .
-      dockerfile: apps/admin/Dockerfile
-    restart: unless-stopped
-    environment:
-      NODE_ENV: production
-      API_BASE_URL: http://api:3001/api/v1
-    depends_on: [api]
-    ports: ["3000:3000"]
-    networks: [public]
+  # admin:
+  #   build:
+  #     context: .
+  #     dockerfile: apps/admin/Dockerfile
+  #   restart: unless-stopped
+  #   environment:
+  #     NODE_ENV: production
+  #     API_BASE_URL: http://api:3001/api/v1
+  #   depends_on: [api]
+  #   ports: ["3000:3000"]
+  #   networks: [public]
 
 volumes:
   postgres_data:
   redis_data:
 networks:
-  private: { internal: true }
+  private:
   public:

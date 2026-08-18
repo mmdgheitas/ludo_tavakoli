@@ -33,7 +33,7 @@ android {
     }
     defaultConfig {
         applicationId = "ir.manche.game"
-        minSdkVersion 21
+        minSdkVersion flutter.minSdkVersion
         targetSdk = 35  // Override Flutter's default to target API 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName
