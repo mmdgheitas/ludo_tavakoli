@@ -2,7 +2,7 @@
 
 ## Flame Ludo engine foundation
 
-The files under `apps/mobile/lib/features/game/game_engine` and the two audio assets originated from:
+The files under `apps/ludo_app/lib/features/game/game_engine` and the two audio assets originated from:
 
 - Project: `harsh-vardhhan/Ludo`
 - Repository: https://github.com/harsh-vardhhan/Ludo

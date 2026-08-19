@@ -5,6 +5,7 @@ import 'package:ludo_app/core/theme/app_theme.dart';
 import 'package:ludo_app/features/game/data/offline_game_repository.dart';
 import 'package:ludo_app/features/game/presentation/game_screen.dart';
 import 'package:ludo_app/features/game/presentation/online_lobby_screen.dart';
+import 'package:ludo_app/features/game/presentation/private_room_screen.dart';
 
 class LobbyScreen extends ConsumerWidget {
   const LobbyScreen({super.key});
@@ -53,7 +54,7 @@ class LobbyScreen extends ConsumerWidget {
                     const SizedBox(height: 20),
                     FilledButton.icon(
                       style: FilledButton.styleFrom(backgroundColor: AppColors.cream, foregroundColor: AppColors.ink, minimumSize: const Size(190, 50)),
-                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const OnlineLobbyScreen())),
+                      onPressed: () => _openOnlineMenu(context),
                       icon: const Icon(Icons.bolt_rounded),
                       label: const Text('بازی سریع'),
                     ),
@@ -149,6 +150,23 @@ class LobbyScreen extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _openOnlineMenu(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('نوع بازی آنلاین', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 16),
+          ListTile(leading: const Icon(Icons.people, color: AppColors.turquoise), title: const Text('بازی سریع دو نفره'), onTap: () { Navigator.pop(sheetContext); Navigator.push(context, MaterialPageRoute(builder: (_) => const OnlineLobbyScreen(playerCount: 2))); }),
+          ListTile(leading: const Icon(Icons.groups, color: AppColors.gold), title: const Text('بازی سریع چهار نفره'), onTap: () { Navigator.pop(sheetContext); Navigator.push(context, MaterialPageRoute(builder: (_) => const OnlineLobbyScreen(playerCount: 4))); }),
+          ListTile(leading: const Icon(Icons.key_rounded, color: AppColors.coral), title: const Text('اتاق خصوصی و کد دعوت'), onTap: () { Navigator.pop(sheetContext); Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivateRoomScreen())); }),
+        ]),
       ),
     );
   }

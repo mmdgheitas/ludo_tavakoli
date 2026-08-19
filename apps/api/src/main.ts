@@ -4,11 +4,15 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { RedisIoAdapter } from './redis/redis-io.adapter';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { cors: false });
   const config = app.get(ConfigService);
   app.use(helmet());
+  const socketAdapter = new RedisIoAdapter(app, config);
+  await socketAdapter.connectToRedis();
+  app.useWebSocketAdapter(socketAdapter);
   app.enableShutdownHooks();
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
   app.setGlobalPrefix('api');

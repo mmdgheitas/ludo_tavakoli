@@ -8,7 +8,7 @@ import { RolesGuard } from '../../common/auth/roles.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminRewardDto } from '../wallet/dto/wallet.dto';
 import { AdminService } from './admin.service';
-import { ChangeUserStatusDto, CreateChatDto, CreateItemDto, UpdateChatDto, UpdateItemDto, VipSettingDto } from './dto/admin.dto';
+import { ChangeUserStatusDto, CreateChatDto, CreateItemDto, UpdateChatDto, UpdateItemDto, UpdateSupportTicketDto, VipSettingDto } from './dto/admin.dto';
 
 @ApiTags('admin')
 @ApiBearerAuth()
@@ -28,6 +28,8 @@ export class AdminController {
   @Patch('settings/vip') updateVip(@CurrentUser() actor: JwtPayload, @Body() dto: VipSettingDto) { return this.admin.updateVipSetting(actor.sub, dto); }
   @Get('payments') payments(@Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number) { return this.admin.payments(Math.max(page, 1)); }
   @Get('operations') operations() { return this.admin.operationalSummary(); }
+  @Get('support-tickets') supportTickets(@Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number) { return this.admin.supportTickets(Math.max(page, 1)); }
+  @Patch('support-tickets/:id') updateSupportTicket(@CurrentUser() actor: JwtPayload, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateSupportTicketDto) { return this.admin.updateSupportTicket(actor.sub, id, dto); }
 
   @Get('items') items() { return this.admin.items(); }
   @Post('items') createItem(@Body() dto: CreateItemDto) { return this.admin.createItem(dto); }

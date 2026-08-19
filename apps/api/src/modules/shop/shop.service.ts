@@ -17,6 +17,16 @@ export class ShopService {
     return this.prisma.inventory.findMany({ where: { userId, quantity: { gt: 0 } }, include: { item: true }, orderBy: { updatedAt: 'desc' } });
   }
 
+  async equip(userId: string, itemId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const owned = await tx.inventory.findUnique({ where: { userId_itemId: { userId, itemId } }, include: { item: true } });
+      if (!owned || owned.quantity < 1) throw new NotFoundException('Item is not owned');
+      if (owned.item.type === ItemType.FATTAH) throw new BadRequestException('Consumables cannot be equipped');
+      await tx.inventory.updateMany({ where: { userId, item: { type: owned.item.type } }, data: { equipped: false } });
+      return tx.inventory.update({ where: { userId_itemId: { userId, itemId } }, data: { equipped: true }, include: { item: true } });
+    });
+  }
+
   async purchase(userId: string, itemId: string, idempotencyKey: string) {
     const previous = await this.prisma.walletTransaction.findUnique({ where: { idempotencyKey } });
     if (previous) {

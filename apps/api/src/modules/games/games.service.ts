@@ -21,18 +21,26 @@ export class GamesService {
   async createRoom(hostId: string, mode: GameMode) {
     const required = this.playerCount(mode);
     const gameId = randomUUID();
+    const roomCode = await this.uniqueRoomCode();
     const state = this.engine.create(gameId, [{ userId: hostId, team: Team.BLUE }], required === 1);
     return this.prisma.game.create({
       data: {
         id: gameId,
+        roomCode,
         mode,
-        status: required === 1 ? GameStatus.ACTIVE : GameStatus.WAITING,
+        status: GameStatus.WAITING,
         state: state as unknown as Prisma.InputJsonValue,
-        startedAt: required === 1 ? new Date() : undefined,
         participants: { create: { userId: hostId, team: Team.BLUE } },
       },
-      select: { id: true, mode: true, status: true, state: true, createdAt: true },
+      select: { id: true, roomCode: true, mode: true, status: true, state: true, createdAt: true },
     });
+  }
+
+  async joinRoomByCode(roomCode: string, userId: string): Promise<{ gameId: string; mode: GameMode; state: AuthoritativeGameState }> {
+    const game = await this.prisma.game.findUnique({ where: { roomCode: roomCode.trim().toUpperCase() }, select: { id: true, mode: true } });
+    if (!game) throw new NotFoundException('Room code is invalid or expired');
+    const state = await this.joinRoom(game.id, userId);
+    return { gameId: game.id, mode: game.mode, state };
   }
 
   async joinRoom(gameId: string, userId: string): Promise<AuthoritativeGameState> {
@@ -46,7 +54,6 @@ export class GamesService {
       const team = TEAMS[game.participants.length];
       const players = [...game.participants.map((participant) => ({ userId: participant.userId, team: participant.team })), { userId, team }];
       const ready = players.length === required;
-      const previous = game.state as unknown as AuthoritativeGameState;
       const state = this.engine.create(gameId, players, ready);
       state.version = game.version + 1;
       await this.prisma.$transaction([
@@ -61,7 +68,6 @@ export class GamesService {
           },
         }),
       ]);
-      if (previous.version > game.version) throw new BadRequestException('Invalid room state');
       await this.store.invalidate(gameId);
       return state;
     });
@@ -69,20 +75,15 @@ export class GamesService {
 
   async createMatch(userIds: string[], mode: GameMode): Promise<AuthoritativeGameState> {
     const required = this.playerCount(mode);
-    if (userIds.length !== required || new Set(userIds).size !== userIds.length) {
-      throw new BadRequestException('Incorrect number of unique players');
-    }
+    if (userIds.length !== required || new Set(userIds).size !== userIds.length) throw new BadRequestException('Incorrect number of unique players');
     const gameId = randomUUID();
     const players = userIds.map((userId, index) => ({ userId, team: TEAMS[index] }));
     const state = this.engine.create(gameId, players, true);
     await this.prisma.game.create({
       data: {
-        id: gameId,
-        mode,
-        status: GameStatus.ACTIVE,
+        id: gameId, mode, status: GameStatus.ACTIVE,
         state: state as unknown as Prisma.InputJsonValue,
-        startedAt: new Date(),
-        participants: { create: players },
+        startedAt: new Date(), participants: { create: players },
       },
     });
     return state;
@@ -101,6 +102,54 @@ export class GamesService {
     return this.command(gameId, userId, (state) => this.engine.move(state, userId, tokenIndex));
   }
 
+  forfeit(gameId: string, userId: string): Promise<MoveResult> {
+    return this.command(gameId, userId, (state) => this.engine.forfeit(state, userId));
+  }
+
+  timeout(gameId: string): Promise<MoveResult> {
+    return this.lock.run(gameId, async () => {
+      const source = await this.store.get(gameId);
+      if (!source.turnDeadlineAt || Date.parse(source.turnDeadlineAt) > Date.now()) return { state: source };
+      const result = this.engine.timeout(source);
+      await this.store.persist(source.version, result.state);
+      return result;
+    });
+  }
+
+  disconnectForfeit(gameId: string, userId: string): Promise<MoveResult> {
+    return this.lock.run(gameId, async () => {
+      const participant = await this.prisma.gameParticipant.findUnique({ where: { gameId_userId: { gameId, userId } }, select: { disconnectedAt: true } });
+      const source = await this.store.get(gameId);
+      const grace = (source.reconnectGraceSeconds ?? 60) * 1000;
+      if (!participant?.disconnectedAt || participant.disconnectedAt.getTime() + grace > Date.now()) return { state: source };
+      const result = this.engine.forfeit(source, userId, true);
+      await this.store.persist(source.version, result.state);
+      return result;
+    });
+  }
+
+  async markConnection(gameId: string, userId: string, connected: boolean): Promise<MoveResult> {
+    return this.lock.run(gameId, async () => {
+      await this.assertParticipant(gameId, userId);
+      const source = await this.store.get(gameId);
+      const result = this.engine.setConnection(source, userId, connected);
+      await this.prisma.gameParticipant.update({
+        where: { gameId_userId: { gameId, userId } },
+        data: { disconnectedAt: connected ? null : new Date() },
+      });
+      if (result.state.version !== source.version) await this.store.persist(source.version, result.state);
+      return result;
+    });
+  }
+
+  async activeStates(): Promise<Array<{ id: string; state: AuthoritativeGameState; participants: Array<{ userId: string; disconnectedAt: Date | null }> }>> {
+    const games = await this.prisma.game.findMany({
+      where: { status: GameStatus.ACTIVE },
+      select: { id: true, state: true, participants: { select: { userId: true, disconnectedAt: true } } },
+    });
+    return games.map((game) => ({ ...game, state: game.state as unknown as AuthoritativeGameState }));
+  }
+
   async useFattah(gameId: string, userId: string, targetUserId: string, targetTokenIndex: number): Promise<MoveResult> {
     return this.lock.run(gameId, async () => {
       await this.assertParticipant(gameId, userId);
@@ -109,9 +158,7 @@ export class GamesService {
         const result = this.engine.useFattah(source, userId, targetUserId, targetTokenIndex);
         await this.store.persistFattah(source.version, result.state, userId, `${targetUserId}:${targetTokenIndex}`);
         return result;
-      } catch (error) {
-        this.rethrowRule(error);
-      }
+      } catch (error) { this.rethrowRule(error); }
     });
   }
 
@@ -123,9 +170,7 @@ export class GamesService {
         const result = action(source);
         await this.store.persist(source.version, result.state);
         return result;
-      } catch (error) {
-        this.rethrowRule(error);
-      }
+      } catch (error) { this.rethrowRule(error); }
     });
   }
 
@@ -138,6 +183,14 @@ export class GamesService {
     if (mode === GameMode.ONLINE_2P) return 2;
     if (mode === GameMode.ONLINE_4P) return 4;
     throw new BadRequestException('Offline modes are managed on device');
+  }
+
+  private async uniqueRoomCode(): Promise<string> {
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const code = randomUUID().replaceAll('-', '').slice(0, 6).toUpperCase();
+      if (!(await this.prisma.game.findUnique({ where: { roomCode: code }, select: { id: true } }))) return code;
+    }
+    throw new BadRequestException('Could not allocate room code');
   }
 
   private rethrowRule(error: unknown): never {

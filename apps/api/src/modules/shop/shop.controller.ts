@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { JwtPayload } from '../../common/auth/jwt-payload';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { PurchaseItemDto } from './dto/purchase-item.dto';
+import { EquipItemDto, PurchaseItemDto } from './dto/purchase-item.dto';
 import { ShopService } from './shop.service';
 
 @ApiTags('shop')
@@ -13,6 +13,8 @@ export class ShopController {
   @Get('items') list() { return this.shop.list(); }
   @Get('inventory') @ApiBearerAuth() @UseGuards(JwtAuthGuard)
   inventory(@CurrentUser() user: JwtPayload) { return this.shop.inventory(user.sub); }
+  @Post('equip') @ApiBearerAuth() @UseGuards(JwtAuthGuard)
+  equip(@CurrentUser() user: JwtPayload, @Body() dto: EquipItemDto) { return this.shop.equip(user.sub, dto.itemId); }
   @Post('purchase') @ApiBearerAuth() @UseGuards(JwtAuthGuard)
   purchase(@CurrentUser() user: JwtPayload, @Body() dto: PurchaseItemDto) { return this.shop.purchase(user.sub, dto.itemId, dto.idempotencyKey); }
 }

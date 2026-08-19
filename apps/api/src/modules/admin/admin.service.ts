@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { GameStatus, Prisma, TransactionStatus, UserStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WalletService } from '../wallet/wallet.service';
-import { CreateChatDto, CreateItemDto, UpdateChatDto, UpdateItemDto, VipSettingDto } from './dto/admin.dto';
+import { CreateChatDto, CreateItemDto, UpdateChatDto, UpdateItemDto, UpdateSupportTicketDto, VipSettingDto } from './dto/admin.dto';
 
 @Injectable()
 export class AdminService {
@@ -69,6 +69,19 @@ export class AdminService {
   }
 
   payments(page: number) { return this.prisma.payment.findMany({ take: 25, skip: (page - 1) * 25, orderBy: { createdAt: 'desc' }, include: { user: { select: { username: true } } } }); }
+
+  supportTickets(page: number) {
+    return this.prisma.supportTicket.findMany({
+      take: 25, skip: (page - 1) * 25, orderBy: { createdAt: 'desc' },
+      include: { user: { select: { id: true, username: true } } },
+    });
+  }
+
+  async updateSupportTicket(actorId: string, id: string, dto: UpdateSupportTicketDto) {
+    const ticket = await this.prisma.supportTicket.update({ where: { id }, data: { status: dto.status, response: dto.response } });
+    await this.prisma.adminAudit.create({ data: { actorId, action: 'support.ticket.update', targetType: 'SupportTicket', targetId: id, metadata: { status: dto.status } } });
+    return ticket;
+  }
 
   async operationalSummary() {
     const [waitingGames, activeGames, failedTransactions] = await Promise.all([

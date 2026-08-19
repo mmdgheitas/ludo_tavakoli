@@ -16,7 +16,7 @@
 ## Flutter build
 
 ```bash
-cd apps/mobile
+cd apps/ludo_app
 flutter pub get
 flutter test
 flutter analyze

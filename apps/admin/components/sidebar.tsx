@@ -1,6 +1,6 @@
 'use client';
 
-import { BadgeDollarSign, BarChart3, Crown, Dice5, Gamepad2, LayoutDashboard, MessageCircleMore, PackageOpen, ReceiptText, Rocket, Settings, ShoppingBag, UsersRound } from 'lucide-react';
+import { BadgeDollarSign, BarChart3, Crown, Dice5, Gamepad2, Headphones, LayoutDashboard, MessageCircleMore, PackageOpen, ReceiptText, Rocket, Settings, ShoppingBag, UsersRound } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -16,6 +16,7 @@ const nav = [
   { href: '/transactions', label: 'تراکنش‌ها', icon: ReceiptText },
   { href: '/chat', label: 'گفت‌وگوی سریع', icon: MessageCircleMore },
   { href: '/analytics', label: 'گزارش‌ها', icon: BarChart3 },
+  { href: '/support', label: 'پشتیبانی', icon: Headphones },
 ];
 
 export function Sidebar() {

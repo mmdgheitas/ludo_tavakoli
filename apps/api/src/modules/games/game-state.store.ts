@@ -27,9 +27,9 @@ export class GameStateStore {
         data: {
           state: state as unknown as Prisma.InputJsonValue,
           version: state.version,
-          status: state.winnerId ? GameStatus.FINISHED : undefined,
+          status: state.phase === 'FINISHED' ? (state.winnerId ? GameStatus.FINISHED : GameStatus.CANCELLED) : undefined,
           winnerId: state.winnerId ?? undefined,
-          finishedAt: state.winnerId ? new Date() : undefined,
+          finishedAt: state.phase === 'FINISHED' ? new Date() : undefined,
         },
       });
       if (result.count !== 1) throw new ConflictException('Game state changed; synchronize and retry');

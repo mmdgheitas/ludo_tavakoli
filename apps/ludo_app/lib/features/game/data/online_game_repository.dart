@@ -22,8 +22,10 @@ class MatchmakingController extends StateNotifier<MatchmakingState> {
   MatchmakingController(this._ref) : super(const MatchmakingState(MatchmakingStatus.idle, 'آماده جست‌وجو'));
   final Ref _ref;
   io.Socket? _socket;
+  String _mode = 'ONLINE_2P';
 
-  Future<void> join() async {
+  Future<void> join({String mode = 'ONLINE_2P'}) async {
+    _mode = mode;
     state = const MatchmakingState(MatchmakingStatus.connecting, 'در حال اتصال امن…');
     final token = await _ref.read(secureStorageProvider).read(key: 'access_token');
     if (token == null) {
@@ -41,7 +43,7 @@ class MatchmakingController extends StateNotifier<MatchmakingState> {
     _socket!
       ..onConnect((_) {
         state = const MatchmakingState(MatchmakingStatus.searching, 'در حال پیدا کردن حریف…');
-        _socket!.emit('matchmaking:join', {'mode': 'ONLINE_2P'});
+        _socket!.emit('matchmaking:join', {'mode': _mode});
       })
       ..on('matchmaking:matched', (data) {
         final value = Map<String, dynamic>.from(data as Map);

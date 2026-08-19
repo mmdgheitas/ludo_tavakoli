@@ -43,7 +43,7 @@ A command cannot be replayed against an old version. Purchase and wallet mutatio
 
 ## Scale model
 
-API instances are stateless except for active Socket.IO connections. PostgreSQL, Redis and object/CDN storage (for avatars) are external. For multi-instance sockets, install the official Socket.IO Redis adapter and sticky connections at the load balancer. Matchmaking ZSET operations and game locks already use Redis; at higher throughput, move match creation to a BullMQ worker and use a transactional outbox for analytics/event delivery.
+API instances are stateless except for active Socket.IO connections. PostgreSQL, Redis and object/CDN storage (for avatars) are external. The official Socket.IO Redis adapter now provides cross-instance rooms and broadcasts; sticky WebSocket connections are still required at the load balancer. Matchmaking ZSET operations and game locks already use Redis; at higher throughput, move match creation to a BullMQ worker and use a transactional outbox for analytics/event delivery.
 
 Recommended initial production topology:
 

@@ -1,11 +1,11 @@
 {
-    "name": "ludo_app",
-    "short_name": "ludo_app",
+    "name": "منچ ایرانی",
+    "short_name": "منچ",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "بازی آنلاین و آفلاین منچ ایرانی",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

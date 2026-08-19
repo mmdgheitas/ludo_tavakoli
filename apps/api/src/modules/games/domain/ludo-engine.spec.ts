@@ -41,4 +41,23 @@ describe('LudoEngine', () => {
     expect(engine.canMove(55, 1)).toBe(true);
     expect(engine.canMove(55, 2)).toBe(false);
   });
+
+  it('advances turn on timeout and forfeits after three consecutive timeouts', () => {
+    const engine = new LudoEngine();
+    let state = engine.create('g1', players);
+    state = engine.timeout(state).state;
+    expect(state.turnIndex).toBe(1);
+    state.players[0].consecutiveTimeouts = 2;
+    state.turnIndex = 0;
+    const result = engine.timeout(state);
+    expect(result.state.players[0].forfeited).toBe(true);
+    expect(result.state.winnerId).toBe('u2');
+  });
+
+  it('awards the remaining player when an opponent forfeits', () => {
+    const engine = new LudoEngine();
+    const result = engine.forfeit(engine.create('g1', players), 'u1');
+    expect(result.state.phase).toBe('FINISHED');
+    expect(result.winnerId).toBe('u2');
+  });
 });

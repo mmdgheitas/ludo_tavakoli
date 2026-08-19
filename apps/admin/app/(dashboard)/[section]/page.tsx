@@ -1,5 +1,6 @@
 import { safeApi } from '@/lib/api';
-import { ChevronLeft, CirclePlus, Filter, Search } from 'lucide-react';
+import { Filter, Search } from 'lucide-react';
+import { ManagementToolbar, RowActions } from '@/components/management-actions';
 import { notFound } from 'next/navigation';
 
 type Row = Record<string, unknown>;
@@ -15,6 +16,7 @@ const configs: Record<string, Config> = {
   transactions: { title: 'تراکنش‌ها', subtitle: 'دفتر کل تغییرات کیف پول', endpoint: '/admin/transactions', columns: [{ key: 'user', label: 'کاربر' }, { key: 'type', label: 'نوع' }, { key: 'amount', label: 'مبلغ' }, { key: 'balanceAfter', label: 'مانده' }, { key: 'createdAt', label: 'زمان' }] },
   chat: { title: 'گفت‌وگوی سریع', subtitle: 'پیام‌ها و واکنش‌های از پیش تعریف‌شده', endpoint: '/admin/quick-chat', columns: [{ key: 'textFa', label: 'متن' }, { key: 'emoji', label: 'ایموجی' }, { key: 'sortOrder', label: 'ترتیب' }, { key: 'active', label: 'فعال' }] },
   analytics: { title: 'گزارش‌های تحلیلی', subtitle: 'خروجی دقیق شاخص‌های محصول', endpoint: '/analytics/trends', columns: [{ key: 'date', label: 'روز' }, { key: 'users', label: 'کاربر جدید' }, { key: 'games', label: 'بازی' }, { key: 'revenueIrr', label: 'درآمد' }] },
+  support: { title: 'تیکت‌های پشتیبانی', subtitle: 'پاسخ‌گویی و پیگیری درخواست بازیکنان', endpoint: '/admin/support-tickets', columns: [{ key: 'user', label: 'کاربر' }, { key: 'subject', label: 'موضوع' }, { key: 'status', label: 'وضعیت' }, { key: 'createdAt', label: 'زمان' }] },
   settings: { title: 'تنظیمات سامانه', subtitle: 'پیکربندی تجاری و عملیاتی', endpoint: '/admin/operations', columns: [{ key: 'name', label: 'شاخص' }, { key: 'value', label: 'مقدار' }] },
 };
 const number = new Intl.NumberFormat('fa-IR');
@@ -26,11 +28,11 @@ export default async function SectionPage({ params }: { params: Promise<{ sectio
   let rows: Row[] = Array.isArray(response) ? response : 'items' in response && Array.isArray(response.items) ? response.items : Object.entries(response).map(([name, value]) => ({ name, value }));
   if (section === 'fattah') rows = rows.filter((row) => String(row.type ?? '').includes('FATTAH'));
   return <section>
-    <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="eyebrow">مدیریت / {config.title}</p><h2 className="mt-1 text-2xl font-black">{config.title}</h2><p className="mt-2 text-xs text-muted">{config.subtitle}</p></div><button className="flex h-11 items-center justify-center gap-2 rounded-2xl bg-mint px-5 text-xs font-black text-ink"><CirclePlus size={17} />افزودن مورد جدید</button></div>
+    <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="eyebrow">مدیریت / {config.title}</p><h2 className="mt-1 text-2xl font-black">{config.title}</h2><p className="mt-2 text-xs text-muted">{config.subtitle}</p></div><ManagementToolbar section={section} /></div>
     <div className="panel overflow-hidden">
       <div className="flex flex-col justify-between gap-3 border-b border-line p-4 sm:flex-row"><label className="flex h-11 max-w-sm flex-1 items-center gap-2 rounded-2xl bg-ink/40 px-4"><Search size={17} className="text-muted" /><input className="w-full bg-transparent text-xs outline-none" placeholder={`جست‌وجو در ${config.title}…`} /></label><button className="flex h-11 items-center justify-center gap-2 rounded-2xl border border-line px-4 text-xs text-muted"><Filter size={16} />فیلترها</button></div>
       <div className="overflow-x-auto"><table className="w-full border-collapse text-right"><thead><tr className="bg-white/[.025]">{config.columns.map((column) => <th key={column.key} className="table-cell text-[11px] font-bold text-muted">{column.label}</th>)}<th className="table-cell" /></tr></thead><tbody>
-        {rows.map((row, index) => <tr key={String(row.id ?? index)} className="border-t border-line/70 transition hover:bg-white/[.025]">{config.columns.map((column) => <td key={column.key} className="table-cell">{format(row[column.key])}</td>)}<td className="table-cell"><button aria-label="جزئیات" className="grid h-8 w-8 place-items-center rounded-xl text-muted hover:bg-white/5 hover:text-white"><ChevronLeft size={16} /></button></td></tr>)}
+        {rows.map((row, index) => <tr key={String(row.id ?? index)} className="border-t border-line/70 transition hover:bg-white/[.025]">{config.columns.map((column) => <td key={column.key} className="table-cell">{format(row[column.key])}</td>)}<td className="table-cell"><RowActions section={section} row={row} /></td></tr>)}
         {!rows.length && <tr><td colSpan={config.columns.length + 1} className="px-6 py-20 text-center"><div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-2xl bg-white/5 text-muted"><Search size={20} /></div><p className="text-sm font-bold">داده‌ای برای نمایش نیست</p><p className="mt-1 text-xs text-muted">پس از اتصال API، اطلاعات این بخش نمایش داده می‌شود.</p></td></tr>}
       </tbody></table></div>
       <div className="flex items-center justify-between border-t border-line p-4 text-[11px] text-muted"><span>{number.format(rows.length)} رکورد</span><span>صفحه ۱ از ۱</span></div>

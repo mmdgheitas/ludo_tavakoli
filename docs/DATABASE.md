@@ -11,7 +11,9 @@ The canonical schema is `apps/api/prisma/schema.prisma`; the initial PostgreSQL 
 - **Payment / VipPurchase**: hashed receipt identity, verified provider transaction and entitlement history.
 - **FattahUsage**: unique game/user usage proof in addition to snapshot state.
 - **QuickChat**: the only chat content accepted by the real-time server.
+- **SupportTicket**: player support requests, status and staff response history.
 - **AdminAudit / AppSetting**: privileged action trail and runtime commercial configuration.
+- **Game.roomCode**: unique invitation code for waiting private rooms.
 
 ## Consistency rules
 

@@ -13,7 +13,7 @@ apps/
 docs/      architecture, API, database, security and deployment runbooks
 ```
 
-The Flame board renderer is derived from `harsh-vardhhan/Ludo` and retained under `apps/mobile/lib/features/game/game_engine`. Product UI, pure game-domain rules, persistence, networking and server authority are outside the renderer. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) before commercial distribution.
+The Flame board renderer is derived from `harsh-vardhhan/Ludo` and retained under `apps/ludo_app/lib/features/game/game_engine`. Product UI, pure game-domain rules, persistence, networking and server authority are outside the renderer. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) before commercial distribution.
 
 ## Implemented foundations
 
@@ -24,8 +24,10 @@ The Flame board renderer is derived from `harsh-vardhhan/Ludo` and retained unde
 - Guest identity with optional name and generated `A.B.C.D` fallback; JWT access/rotating refresh sessions; roles, bans and session revocation.
 - Coin ledger, daily/admin/game rewards, inventory, backend-controlled shop, VIP reward multiplier, one-Fattah-per-game enforcement and atomic inventory decrement.
 - Fail-closed Bazaar/Myket receipt verifier boundary, receipt hashing, provider transaction uniqueness and server-only entitlement fulfillment.
-- Predefined quick chat only; no free-text transport.
-- Admin APIs and a modern Persian dashboard for users, games, products, VIP, Fattah, payments, transactions and analytics.
+- Predefined quick chat with an in-match Persian picker, reactions and server cooldown; no free-text transport.
+- Two/four-player matchmaking, private invitation-code rooms, turn deadlines, explicit forfeit and reconnect grace handling.
+- Functional profile editing, inventory/equip, transaction history, local settings and support tickets.
+- Admin APIs and functional management forms for users, rewards, products, VIP, quick chat and support, plus payments and analytics.
 - Swagger, initial SQL migration, seed data, containers, CI, rate limiting, DTO validation and dependency audit.
 
 ## Local start
@@ -51,7 +53,7 @@ npm run dev:admin
 Run mobile:
 
 ```bash
-cd apps/mobile
+cd apps/ludo_app
 flutter pub get
 flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3001/api/v1 \
   --dart-define=SOCKET_BASE_URL=http://10.0.2.2:3001
@@ -64,7 +66,7 @@ npm audit               # expected: 0 known vulnerabilities
 npm run lint
 npm test
 npm run build
-cd apps/mobile && flutter analyze && flutter test
+cd apps/ludo_app && flutter analyze && flutter test
 ```
 
 Node builds and authoritative-engine tests are covered in CI. Android release signing, each marketplace's native billing SDK, production provider credentials, privacy/legal content, load testing and external security review remain release-environment responsibilities; they cannot be safely embedded in source control.

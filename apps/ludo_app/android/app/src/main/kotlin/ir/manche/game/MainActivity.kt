@@ -1,4 +1,4 @@
-package com.example.ludo_app
+package ir.manche.game
 
 import io.flutter.embedding.android.FlutterActivity
 

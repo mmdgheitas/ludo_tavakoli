@@ -14,6 +14,7 @@ import { MatchmakingModule } from './modules/matchmaking/matchmaking.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { ShopModule } from './modules/shop/shop.module';
 import { UsersModule } from './modules/users/users.module';
+import { SupportModule } from './modules/support/support.module';
 import { VipModule } from './modules/vip/vip.module';
 import { WalletModule } from './modules/wallet/wallet.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -37,6 +38,7 @@ import { validateEnvironment } from './config/env.validation';
     FattahModule,
     PaymentsModule,
     ChatModule,
+    SupportModule,
     AdminModule,
     AnalyticsModule,
   ],

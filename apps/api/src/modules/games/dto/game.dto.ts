@@ -1,11 +1,18 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { GameMode } from '@prisma/client';
-import { IsEnum, IsInt, IsUUID, Max, Min } from 'class-validator';
+import { IsEnum, IsInt, IsString, IsUUID, Length, Matches, Max, Min } from 'class-validator';
 
 export class CreateRoomDto {
   @ApiProperty({ enum: [GameMode.ONLINE_2P, GameMode.ONLINE_4P] })
   @IsEnum(GameMode)
   mode!: GameMode;
+}
+
+export class JoinRoomCodeDto {
+  @IsString()
+  @Length(6, 8)
+  @Matches(/^[A-Za-z0-9]+$/)
+  roomCode!: string;
 }
 
 export class MoveTokenDto {

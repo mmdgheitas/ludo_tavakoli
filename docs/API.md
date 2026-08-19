@@ -8,12 +8,13 @@ Base path: `/api/v1`. Interactive OpenAPI is served at `/docs`.
 |---|---|
 | Auth | `POST /auth/guest`, `/auth/refresh`, `/auth/admin/login`, `/auth/logout` |
 | User | `GET/PATCH /users/me` |
-| Games | `POST /games/rooms`, `POST /games/:id/join`, `GET /games/:id/state`, `POST /games/:id/roll`, `/move`, `/fattah` |
+| Games | `POST /games/rooms`, `POST /games/rooms/join`, `POST /games/:id/join`, `GET /games/:id/state`, `POST /games/:id/roll`, `/move`, `/fattah`, `/forfeit` |
 | Wallet | `GET /wallet/transactions`, `POST /wallet/daily-reward` |
 | Shop | `GET /shop/items`, `GET /shop/inventory`, `POST /shop/purchase` |
 | VIP/Fattah | `GET /vip/offer`, `/vip/status`, `/fattah/balance` |
 | Payments | `POST /payments/verify`, `GET /payments` |
 | Chat | `GET /chat/messages` |
+| Support | `GET/POST /support/tickets` |
 | Admin | `/admin/users`, `/games`, `/transactions`, `/items`, `/payments`, `/vip-purchases`, `/quick-chat` |
 | Analytics | `GET /analytics/dashboard`, `/analytics/trends` |
 
@@ -33,6 +34,7 @@ Connect over WebSocket transport and provide `{ auth: { token: accessToken } }`.
 | `game:roll` | `{ gameId }` | Request server dice roll |
 | `game:move` | `{ gameId, tokenIndex: 0..3 }` | Request legal movement |
 | `game:fattah` | `{ gameId, targetUserId, targetTokenIndex }` | Request one rocket attack |
+| `game:forfeit` | `{ gameId }` | Forfeit the match |
 | `chat:send` | `{ gameId, messageId }` | Send an active predefined message |
 | `presence:heartbeat` | `{}` | Extend online presence |
 

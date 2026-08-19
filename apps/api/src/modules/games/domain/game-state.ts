@@ -7,7 +7,11 @@ export interface PlayerState {
   team: Team;
   tokens: [number, number, number, number];
   consecutiveSixes: number;
+  consecutiveTimeouts: number;
   fattahUsed: boolean;
+  forfeited: boolean;
+  connected: boolean;
+  disconnectedAt: string | null;
 }
 
 export interface AuthoritativeGameState {
@@ -19,6 +23,9 @@ export interface AuthoritativeGameState {
   players: PlayerState[];
   winnerId: string | null;
   lastActionAt: string;
+  turnDeadlineAt: string | null;
+  turnSeconds: number;
+  reconnectGraceSeconds: number;
 }
 
 export interface MoveResult {
@@ -26,6 +33,7 @@ export interface MoveResult {
   dice?: number;
   capturedToken?: { userId: string; tokenIndex: number };
   winnerId?: string;
+  reason?: 'TURN_TIMEOUT' | 'FORFEIT' | 'DISCONNECTED';
 }
 
 export class GameRuleError extends Error {

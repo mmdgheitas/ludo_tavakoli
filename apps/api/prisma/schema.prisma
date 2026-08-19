@@ -77,6 +77,13 @@ enum PaymentProvider {
   MYKET
 }
 
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
 model User {
   id               String              @id @default(uuid()) @db.Uuid
   username         String              @unique @db.VarChar(32)
@@ -101,6 +108,7 @@ model User {
   fattahUsages     FattahUsage[]
   dailyRewards     DailyReward[]
   adminActions     AdminAudit[]         @relation("AdminActor")
+  supportTickets   SupportTicket[]
 
   @@index([createdAt])
   @@index([lastSeenAt])
@@ -123,6 +131,7 @@ model RefreshSession {
 
 model Game {
   id           String            @id @default(uuid()) @db.Uuid
+  roomCode     String?           @unique @db.VarChar(8)
   mode         GameMode
   status       GameStatus        @default(WAITING)
   state        Json
@@ -280,6 +289,21 @@ model AppSetting {
   key       String   @id @db.VarChar(64)
   value     Json
   updatedAt DateTime @updatedAt
+}
+
+model SupportTicket {
+  id        String              @id @default(uuid()) @db.Uuid
+  userId    String              @db.Uuid
+  subject   String              @db.VarChar(120)
+  message   String              @db.VarChar(2000)
+  status    SupportTicketStatus @default(OPEN)
+  response  String?             @db.VarChar(2000)
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
 }
 
 model AdminAudit {

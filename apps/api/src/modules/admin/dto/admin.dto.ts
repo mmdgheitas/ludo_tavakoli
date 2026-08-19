@@ -1,4 +1,4 @@
-import { ItemType, UserStatus } from '@prisma/client';
+import { ItemType, SupportTicketStatus, UserStatus } from '@prisma/client';
 import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
 
 export class ChangeUserStatusDto {
@@ -45,6 +45,13 @@ export class VipSettingDto {
   @IsString() @MaxLength(100) titleFa!: string;
   @IsInt() @Min(1) @Max(3650) durationDays!: number;
   @IsInt() @Min(1) @Max(10_000_000_000) priceIrr!: number;
+}
+
+export class UpdateSupportTicketDto {
+  @IsEnum(SupportTicketStatus)
+  status!: SupportTicketStatus;
+  @IsOptional() @IsString() @MaxLength(2000)
+  response?: string;
 }
 
 export class ResourceIdDto { @IsUUID() id!: string; }
