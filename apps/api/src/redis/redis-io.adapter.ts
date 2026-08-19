@@ -15,7 +15,7 @@ export class RedisIoAdapter extends IoAdapter {
   }
 
   async connectToRedis(): Promise<void> {
-    const url = this.config.get<string>('REDIS_URL') ?? 'redis://localhost:6379';
+    const url = this.config.get<string>('REDIS_URL') ?? 'redis://:redis_dev@127.0.0.1:6379';
     this.pubClient = new Redis(url, { lazyConnect: true, maxRetriesPerRequest: null });
     this.subClient = this.pubClient.duplicate();
     await Promise.all([this.pubClient.connect(), this.subClient.connect()]);

@@ -24,7 +24,7 @@ async function bootstrap(): Promise<void> {
   }));
   const origins = (config.get<string>('CORS_ORIGINS') ?? 'http://localhost:3000')
     .split(',').map((origin) => origin.trim());
-  app.enableCors({ origin: origins, credentials: true, methods: ['GET', 'POST', 'PATCH', 'DELETE'] });
+  // app.enableCors({ origin: origins, credentials: true, methods: ['GET', 'POST', 'PATCH', 'DELETE'] });
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Manche Irani API')
