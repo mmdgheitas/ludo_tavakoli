@@ -1,7 +1,6 @@
 import { GameMode } from '@prisma/client';
 import { ConnectedSocket, MessageBody, OnGatewayConnection, OnGatewayDisconnect, SubscribeMessage, WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { SocketAuthService } from '../auth/socket-auth.service';
 import { MatchmakingService } from './matchmaking.service';
 
 interface SocketData { userId: string }
@@ -10,17 +9,14 @@ type MatchSocket = Socket<Record<string, never>, Record<string, never>, Record<s
 @WebSocketGateway({ cors: { origin: (process.env.CORS_ORIGINS ?? 'http://localhost:3000').split(','), credentials: true }, transports: ['websocket'] })
 export class MatchmakingGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server!: Server;
-  constructor(private readonly matchmaking: MatchmakingService, private readonly socketAuth: SocketAuthService) {}
+  constructor(private readonly matchmaking: MatchmakingService) {}
 
-  async handleConnection(client: MatchSocket): Promise<void> {
-    try {
-      const payload = await this.socketAuth.validate(String(client.handshake.auth.token ?? ''));
-      client.data.userId = payload.sub;
-    } catch { client.disconnect(true); }
+  handleConnection(client: MatchSocket): void {
+    if (!client.data.userId) client.disconnect(true);
   }
 
   async handleDisconnect(client: MatchSocket): Promise<void> {
-    if (client.data.userId) await this.matchmaking.leave(client.data.userId);
+    if (client.data.userId) await this.matchmaking.leaveSocket(client.data.userId, client.id);
   }
 
   @SubscribeMessage('matchmaking:join')
@@ -29,7 +25,11 @@ export class MatchmakingGateway implements OnGatewayConnection, OnGatewayDisconn
       const match = await this.matchmaking.join(client.data.userId, client.id, body.mode);
       if (!match) return { event: 'matchmaking:queued', data: { mode: body.mode } };
       for (const socketId of match.socketIds) {
-        this.server.to(socketId).emit('matchmaking:matched', { gameId: match.gameId });
+        this.server.to(socketId).emit('matchmaking:matched', {
+          gameId: match.gameId,
+          mode: match.mode,
+          playerCount: match.userIds.length,
+        });
       }
       return { event: 'matchmaking:ack', data: { matched: true, gameId: match.gameId } };
     } catch (error) {
@@ -39,7 +39,7 @@ export class MatchmakingGateway implements OnGatewayConnection, OnGatewayDisconn
 
   @SubscribeMessage('matchmaking:leave')
   async leave(@ConnectedSocket() client: MatchSocket) {
-    await this.matchmaking.leave(client.data.userId);
+    await this.matchmaking.leaveSocket(client.data.userId, client.id);
     return { event: 'matchmaking:left', data: { success: true } };
   }
 }

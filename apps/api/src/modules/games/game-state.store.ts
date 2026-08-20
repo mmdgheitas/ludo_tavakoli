@@ -27,7 +27,11 @@ export class GameStateStore {
         data: {
           state: state as unknown as Prisma.InputJsonValue,
           version: state.version,
-          status: state.phase === 'FINISHED' ? (state.winnerId ? GameStatus.FINISHED : GameStatus.CANCELLED) : undefined,
+          status: state.phase === 'FINISHED'
+            ? (state.winnerId ? GameStatus.FINISHED : GameStatus.CANCELLED)
+            : state.phase === 'WAITING_PLAYERS'
+              ? GameStatus.WAITING
+              : GameStatus.ACTIVE,
           winnerId: state.winnerId ?? undefined,
           finishedAt: state.phase === 'FINISHED' ? new Date() : undefined,
         },

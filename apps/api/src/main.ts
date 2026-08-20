@@ -5,12 +5,13 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { RedisIoAdapter } from './redis/redis-io.adapter';
+import { SocketAuthService } from './modules/auth/socket-auth.service';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { cors: false });
   const config = app.get(ConfigService);
   app.use(helmet());
-  const socketAdapter = new RedisIoAdapter(app, config);
+  const socketAdapter = new RedisIoAdapter(app, config, app.get(SocketAuthService));
   await socketAdapter.connectToRedis();
   app.useWebSocketAdapter(socketAdapter);
   app.enableShutdownHooks();
@@ -24,7 +25,7 @@ async function bootstrap(): Promise<void> {
   }));
   const origins = (config.get<string>('CORS_ORIGINS') ?? 'http://localhost:3000')
     .split(',').map((origin) => origin.trim());
-  // app.enableCors({ origin: origins, credentials: true, methods: ['GET', 'POST', 'PATCH', 'DELETE'] });
+  app.enableCors({ origin: origins, credentials: true, methods: ['GET', 'POST', 'PATCH', 'DELETE'] });
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Manche Irani API')

@@ -60,4 +60,34 @@ describe('LudoEngine', () => {
     expect(result.state.phase).toBe('FINISHED');
     expect(result.winnerId).toBe('u2');
   });
+
+  it('starts an online game only after every required player connects', () => {
+    const engine = new LudoEngine(() => 1);
+    let state = engine.create('g1', players, false, 2);
+    expect(state.phase).toBe('WAITING_PLAYERS');
+    expect(state.players.every((player) => !player.connected)).toBe(true);
+    state = engine.setConnection(state, 'u1', true).state;
+    expect(state.phase).toBe('WAITING_PLAYERS');
+    state = engine.setConnection(state, 'u2', true).state;
+    expect(state.phase).toBe('WAITING_ROLL');
+    expect(state.turnDeadlineAt).not.toBeNull();
+  });
+
+  it('keeps the active turn deadline while a player reconnects', () => {
+    const engine = new LudoEngine(() => 1);
+    let state = engine.create('g1', players);
+    const deadline = state.turnDeadlineAt;
+    state = engine.setConnection(state, 'u2', false).state;
+    expect(state.turnDeadlineAt).toBe(deadline);
+    state = engine.setConnection(state, 'u2', true).state;
+    expect(state.turnDeadlineAt).toBe(deadline);
+  });
+
+  it('cancels a stale game that never became ready', () => {
+    const engine = new LudoEngine();
+    const state = engine.create('g1', players, false, 2);
+    const result = engine.cancelWaiting(state);
+    expect(result.state.phase).toBe('FINISHED');
+    expect(result.state.winnerId).toBeNull();
+  });
 });

@@ -18,8 +18,15 @@ export class LudoEngine {
     private readonly reconnectGraceSeconds = 60,
   ) {}
 
-  create(gameId: string, players: Array<{ userId: string; team: Team }>, ready = true): AuthoritativeGameState {
-    if (players.length < 1 || players.length > 4) throw new GameRuleError('INVALID_PLAYERS', 'A game requires one to four players');
+  create(
+    gameId: string,
+    players: Array<{ userId: string; team: Team }>,
+    ready = true,
+    requiredPlayers = players.length,
+  ): AuthoritativeGameState {
+    if (players.length < 1 || players.length > 4 || requiredPlayers < players.length || requiredPlayers > 4) {
+      throw new GameRuleError('INVALID_PLAYERS', 'A game requires one to four players');
+    }
     const now = new Date();
     return {
       gameId,
@@ -27,12 +34,13 @@ export class LudoEngine {
       phase: ready ? 'WAITING_ROLL' : 'WAITING_PLAYERS',
       turnIndex: 0,
       pendingRoll: null,
-      players: players.map((player) => this.newPlayer(player)),
+      players: players.map((player) => this.newPlayer(player, ready)),
       winnerId: null,
       lastActionAt: now.toISOString(),
       turnDeadlineAt: ready ? this.deadline(now) : null,
       turnSeconds: this.turnSeconds,
       reconnectGraceSeconds: this.reconnectGraceSeconds,
+      requiredPlayers,
     };
   }
 
@@ -100,6 +108,16 @@ export class LudoEngine {
     return { state: this.touch(state), capturedToken: { userId: target.userId, tokenIndex: targetTokenIndex } };
   }
 
+  cancelWaiting(source: AuthoritativeGameState): MoveResult {
+    const state = this.clone(source);
+    if (state.phase !== 'WAITING_PLAYERS') return { state: source };
+    for (const player of state.players) player.forfeited = true;
+    state.phase = 'FINISHED';
+    state.pendingRoll = null;
+    state.turnDeadlineAt = null;
+    return { state: this.touch(state, false), reason: 'DISCONNECTED' };
+  }
+
   timeout(source: AuthoritativeGameState): MoveResult {
     const state = this.clone(source);
     if (state.phase === 'FINISHED' || state.phase === 'WAITING_PLAYERS') throw new GameRuleError('TIMEOUT_NOT_ALLOWED', 'Game has no active turn');
@@ -137,10 +155,20 @@ export class LudoEngine {
   setConnection(source: AuthoritativeGameState, userId: string, connected: boolean): MoveResult {
     const state = this.clone(source);
     const player = state.players.find((item) => item.userId === userId);
-    if (!player || player.forfeited || state.phase === 'FINISHED' || player.connected === connected) return { state: source };
+    if (!player || player.forfeited || state.phase === 'FINISHED') return { state: source };
+    const connectionChanged = player.connected !== connected;
     player.connected = connected;
     player.disconnectedAt = connected ? null : new Date().toISOString();
-    return { state: this.touch(state, false) };
+
+    const canStart = state.phase === 'WAITING_PLAYERS' &&
+        state.players.length === state.requiredPlayers &&
+        state.players.every((item) => item.connected && !item.forfeited);
+    if (canStart) {
+      state.phase = 'WAITING_ROLL';
+      state.pendingRoll = null;
+      return { state: this.touch(state, true) };
+    }
+    return connectionChanged ? { state: this.touch(state, false) } : { state: source };
   }
 
   canMove(progress: number, dice: number): boolean {
@@ -149,14 +177,24 @@ export class LudoEngine {
     return progress >= 0 && progress + dice <= FINISH;
   }
 
-  private newPlayer(player: { userId: string; team: Team }): PlayerState {
-    return { ...player, tokens: [-1, -1, -1, -1], consecutiveSixes: 0, consecutiveTimeouts: 0, fattahUsed: false, forfeited: false, connected: true, disconnectedAt: null };
+  private newPlayer(player: { userId: string; team: Team }, connected: boolean): PlayerState {
+    return {
+      ...player,
+      tokens: [-1, -1, -1, -1],
+      consecutiveSixes: 0,
+      consecutiveTimeouts: 0,
+      fattahUsed: false,
+      forfeited: false,
+      connected,
+      disconnectedAt: connected ? null : new Date().toISOString(),
+    };
   }
 
   private clone(source: AuthoritativeGameState): AuthoritativeGameState {
     const state = structuredClone(source);
     state.turnSeconds ??= this.turnSeconds;
     state.reconnectGraceSeconds ??= this.reconnectGraceSeconds;
+    state.requiredPlayers ??= state.players.length;
     state.turnDeadlineAt ??= state.phase === 'WAITING_PLAYERS' || state.phase === 'FINISHED' ? null : this.deadline();
     state.players = state.players.map((player) => ({
       ...player,
@@ -172,17 +210,18 @@ export class LudoEngine {
     const attacker = state.players[attackerIndex];
     const cell = this.sharedCell(attacker.team, attacker.tokens[tokenIndex]);
     if (cell == null || SAFE_CELLS.has(cell)) return undefined;
+    let firstCapture: { userId: string; tokenIndex: number } | undefined;
     for (let playerIndex = 0; playerIndex < state.players.length; playerIndex += 1) {
       if (playerIndex === attackerIndex || state.players[playerIndex].forfeited) continue;
       const target = state.players[playerIndex];
       for (let index = 0; index < target.tokens.length; index += 1) {
         if (this.sharedCell(target.team, target.tokens[index]) === cell) {
           target.tokens[index] = -1;
-          return { userId: target.userId, tokenIndex: index };
+          firstCapture ??= { userId: target.userId, tokenIndex: index };
         }
       }
     }
-    return undefined;
+    return firstCapture;
   }
 
   private sharedCell(team: Team, progress: number): number | null {

@@ -8,7 +8,7 @@ Base path: `/api/v1`. Interactive OpenAPI is served at `/docs`.
 |---|---|
 | Auth | `POST /auth/guest`, `/auth/refresh`, `/auth/admin/login`, `/auth/logout` |
 | User | `GET/PATCH /users/me` |
-| Games | `POST /games/rooms`, `POST /games/rooms/join`, `POST /games/:id/join`, `GET /games/:id/state`, `POST /games/:id/roll`, `/move`, `/fattah`, `/forfeit` |
+| Games | `POST /games/rooms`, `POST /games/rooms/join`, `GET /games/active/me`, `POST /games/:id/join`, `GET /games/:id/state`, `POST /games/:id/roll`, `/move`, `/fattah`, `/forfeit` |
 | Wallet | `GET /wallet/transactions`, `POST /wallet/daily-reward` |
 | Shop | `GET /shop/items`, `GET /shop/inventory`, `POST /shop/purchase` |
 | VIP/Fattah | `GET /vip/offer`, `/vip/status`, `/fattah/balance` |

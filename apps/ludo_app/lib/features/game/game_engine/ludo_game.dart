@@ -196,6 +196,21 @@ class Ludo extends FlameGame
     }
   }
 
+  void syncDiceValue(int? value) {
+    if (value == null || value < 1 || value > 6) return;
+    final dice = _findDice(_upperController) ?? _findDice(_lowerController);
+    dice?.diceFace.updateDiceValue(value);
+  }
+
+  LudoDice? _findDice(Component root) {
+    if (root is LudoDice) return root;
+    for (final child in root.children) {
+      final result = _findDice(child);
+      if (result != null) return result;
+    }
+    return null;
+  }
+
   Future<void> startGame() async {
     await GameInitializer.run(this, teams);
   }

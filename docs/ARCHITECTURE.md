@@ -32,12 +32,12 @@ Offline random dice and local state are allowed only for pass-and-play. Offline 
 ## Online command lifecycle
 
 1. Authenticated socket subscribes to `game:{uuid}`; membership is checked against PostgreSQL.
-2. Client sends an intent (`game:roll`, `game:move`, `game:fattah`) without a result.
+2. Matched players enter `WAITING_PLAYERS`; the turn clock starts only after every required socket subscribes. The client then sends intents (`game:roll`, `game:move`, `game:fattah`) without results.
 3. API acquires `lock:game:{uuid}` using a tokenized Redis lock.
 4. API reads the latest snapshot, checks actor/turn/phase and applies pure rules.
 5. PostgreSQL updates only when `version = expectedVersion`; rewards and completion are in the same transaction.
 6. Redis cache is replaced and the accepted snapshot is broadcast to the room.
-7. On reconnect, the client calls `GET /games/:id/state` or `game:subscribe` and replaces local online state.
+7. On reconnect, the client discovers resumable matches through `GET /games/active/me`, calls `game:subscribe`, and replaces local online state. Duplicate device sockets are accounted for before a player is marked disconnected.
 
 A command cannot be replayed against an old version. Purchase and wallet mutations use unique idempotency keys.
 

@@ -15,8 +15,19 @@ export class GameLifecycleService {
     if (this.running) return;
     this.running = true;
     try {
-      const games = await this.games.activeStates();
+      const [games, waitingGames] = await Promise.all([
+        this.games.activeStates(),
+        this.games.staleWaitingGames(),
+      ]);
       const now = Date.now();
+      for (const game of waitingGames) {
+        try {
+          const result = await this.games.cancelWaiting(game.id);
+          if (result.state.version !== game.state.version) this.gateway.broadcast(game.id, result);
+        } catch (error) {
+          this.logger.debug(`Waiting-game race for ${game.id}: ${error instanceof Error ? error.message : 'skipped'}`);
+        }
+      }
       for (const game of games) {
         try {
           if (game.state.turnDeadlineAt && Date.parse(game.state.turnDeadlineAt) <= now) {

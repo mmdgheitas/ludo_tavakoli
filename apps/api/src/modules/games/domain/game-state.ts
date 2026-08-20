@@ -26,6 +26,7 @@ export interface AuthoritativeGameState {
   turnDeadlineAt: string | null;
   turnSeconds: number;
   reconnectGraceSeconds: number;
+  requiredPlayers: number;
 }
 
 export interface MoveResult {

@@ -2,6 +2,7 @@ import 'package:ludo_app/features/game/domain/game_snapshot.dart';
 import 'package:ludo_app/features/game/domain/ludo_rules.dart';
 import 'package:ludo_app/features/game/game_engine/ludo_game.dart';
 import 'package:ludo_app/features/game/game_engine/managers/game_state.dart';
+import 'package:ludo_app/features/game/game_engine/managers/token_manager.dart';
 import 'package:ludo_app/features/game/game_engine/models/ludo_game_state.dart';
 import 'package:ludo_app/features/game/game_engine/models/token.dart' as engine;
 
@@ -39,9 +40,22 @@ class OfflineSessionAdapter {
 
   Future<void> restore(Ludo game, GameSnapshot snapshot) async {
     final target = GameState();
-    target.currentPlayerIndex = snapshot.currentTurn.clamp(0, target.players.length - 1).toInt();
-    target.diceNumber = snapshot.pendingDice ?? 1;
+    final serverTurn = snapshot.teams.isEmpty
+        ? 0
+        : snapshot.currentTurn.clamp(0, snapshot.teams.length - 1).toInt();
+    final currentTeam = snapshot.teams.isEmpty ? null : snapshot.teams[serverTurn];
+    final mappedTurn = currentTeam == null
+        ? -1
+        : target.players.indexWhere((player) => player.playerId.name == currentTeam.name);
+    target.currentPlayerIndex = mappedTurn >= 0 ? mappedTurn : 0;
+    if (snapshot.pendingDice != null) target.diceNumber = snapshot.pendingDice!;
     target.state = _enginePhase(snapshot.phase);
+    final bases = <String, String>{
+      ...TokenManager().blueTokensBase,
+      ...TokenManager().redTokensBase,
+      ...TokenManager().greenTokensBase,
+      ...TokenManager().yellowTokensBase,
+    };
 
     for (final player in target.players) {
       player.totalTokensInHome = 0;
@@ -55,7 +69,9 @@ class OfflineSessionAdapter {
             snapshot.pendingDice != null &&
             const LudoRules().canMove(saved, snapshot.pendingDice!);
         if (saved.progress < 0) {
+          token.positionId = bases[token.tokenId] ?? token.positionId;
           token.state = engine.TokenState.inBase;
+          await target.getComponentForToken(token)?.animateToBase(token.positionId);
         } else {
           final progress = saved.progress.clamp(0, path.length - 1).toInt();
           token.positionId = path[progress];
@@ -65,8 +81,10 @@ class OfflineSessionAdapter {
         }
       }
     }
+    target.clearTokenTrail();
     target.resizeTokensOnSpot(game.world);
     game.blinkBaseForTeam(target.currentPlayer.playerId);
+    game.syncDiceValue(snapshot.pendingDice);
   }
 
   MatchPhase _domainPhase(LudoGameState phase) => switch (phase) {

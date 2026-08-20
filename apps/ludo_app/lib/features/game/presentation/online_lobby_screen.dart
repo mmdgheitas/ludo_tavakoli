@@ -13,7 +13,19 @@ class OnlineLobbyScreen extends ConsumerStatefulWidget {
 }
 
 class _OnlineLobbyScreenState extends ConsumerState<OnlineLobbyScreen> {
+  bool _entered = false;
   String get mode => widget.playerCount == 4 ? 'ONLINE_4P' : 'ONLINE_2P';
+
+  void _enterMatch(MatchmakingState state) {
+    if (_entered || state.gameId == null || !mounted) return;
+    _entered = true;
+    final count = state.playerCount ?? widget.playerCount;
+    ref.read(matchmakingProvider.notifier).cancel(resetState: false);
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => OnlineMatchScreen(gameId: state.gameId!, playerCount: count)),
+    );
+  }
 
   @override
   void initState() {
@@ -24,6 +36,11 @@ class _OnlineLobbyScreenState extends ConsumerState<OnlineLobbyScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(matchmakingProvider);
+    ref.listen<MatchmakingState>(matchmakingProvider, (_, next) {
+      if (next.status == MatchmakingStatus.found && next.gameId != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _enterMatch(next));
+      }
+    });
     return Scaffold(
       appBar: AppBar(
         title: Text('بازی آنلاین ${widget.playerCount} نفره'),
@@ -47,11 +64,7 @@ class _OnlineLobbyScreenState extends ConsumerState<OnlineLobbyScreen> {
           if (state.status == MatchmakingStatus.error) FilledButton.tonal(onPressed: () => ref.read(matchmakingProvider.notifier).join(mode: mode), child: const Text('تلاش دوباره')),
           if (state.status == MatchmakingStatus.found && state.gameId != null)
             FilledButton.icon(
-              onPressed: () {
-                final gameId = state.gameId!;
-                ref.read(matchmakingProvider.notifier).cancel();
-                Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => OnlineMatchScreen(gameId: gameId, playerCount: widget.playerCount)));
-              },
+              onPressed: () => _enterMatch(state),
               icon: const Icon(Icons.play_arrow_rounded), label: const Text('ورود به مسابقه'),
             ),
           const Spacer(),

@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ludo_app/core/providers.dart';
 import 'package:ludo_app/core/theme/app_theme.dart';
 import 'package:ludo_app/features/game/data/offline_game_repository.dart';
+import 'package:ludo_app/features/game/data/online_game_repository.dart';
+import 'package:ludo_app/features/game/presentation/online_match_screen.dart';
 import 'package:ludo_app/features/game/presentation/game_screen.dart';
 import 'package:ludo_app/features/game/presentation/online_lobby_screen.dart';
 import 'package:ludo_app/features/game/presentation/private_room_screen.dart';
@@ -13,6 +15,7 @@ class LobbyScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider).value;
+    final activeOnline = ref.watch(activeOnlineGamesProvider).value ?? const <ActiveOnlineGame>[];
     final unfinished = OfflineGameRepository().unfinished();
     return Scaffold(
       body: SafeArea(
@@ -60,6 +63,34 @@ class LobbyScreen extends ConsumerWidget {
                     ),
                   ]),
                 ),
+                if (activeOnline.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Card(
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: () async {
+                        final game = activeOnline.first;
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => OnlineMatchScreen(gameId: game.id, playerCount: game.playerCount)),
+                        );
+                        ref.invalidate(activeOnlineGamesProvider);
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.all(17),
+                        child: Row(children: [
+                          const CircleAvatar(backgroundColor: Color(0x332FC8B3), child: Icon(Icons.wifi_tethering, color: AppColors.turquoise)),
+                          const SizedBox(width: 13),
+                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text(activeOnline.first.status == 'WAITING' ? 'بازگشت به اتاق آنلاین' : 'ادامه مسابقه آنلاین', style: const TextStyle(fontWeight: FontWeight.w900)),
+                            Text('${activeOnline.first.playerCount} نفره${activeOnline.first.roomCode == null ? '' : ' • کد ${activeOnline.first.roomCode}'}', style: const TextStyle(color: AppColors.muted, fontSize: 11)),
+                          ])),
+                          const Icon(Icons.chevron_left_rounded),
+                        ]),
+                      ),
+                    ),
+                  ),
+                ],
                 if (unfinished.isNotEmpty) ...[
                   const SizedBox(height: 16),
                   Card(

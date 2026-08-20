@@ -1,7 +1,6 @@
 import { Logger, UsePipes, ValidationPipe } from '@nestjs/common';
 import { ConnectedSocket, MessageBody, OnGatewayConnection, OnGatewayDisconnect, SubscribeMessage, WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { SocketAuthService } from '../auth/socket-auth.service';
 import { FattahDto, MoveTokenDto } from './dto/game.dto';
 import { GamesService } from './games.service';
 
@@ -17,19 +16,22 @@ export class GamesGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server!: Server;
   private readonly logger = new Logger(GamesGateway.name);
 
-  constructor(private readonly games: GamesService, private readonly socketAuth: SocketAuthService) {}
+  constructor(private readonly games: GamesService) {}
 
-  async handleConnection(client: GameSocket): Promise<void> {
-    try {
-      const payload = await this.socketAuth.validate(String(client.handshake.auth.token ?? ''));
-      client.data.userId = payload.sub;
-      client.data.subscribedGames = [];
-    } catch { client.disconnect(true); }
+  handleConnection(client: GameSocket): void {
+    if (!client.data.userId) client.disconnect(true);
+    client.data.subscribedGames ??= [];
   }
 
   async handleDisconnect(client: GameSocket): Promise<void> {
     for (const gameId of client.data.subscribedGames ?? []) {
       try {
+        const sockets = await this.server.in(this.room(gameId)).fetchSockets();
+        const hasAnotherConnection = sockets.some((socket) =>
+          socket.id !== client.id &&
+          (socket.data as Partial<SocketData>).userId === client.data.userId,
+        );
+        if (hasAnotherConnection) continue;
         const result = await this.games.markConnection(gameId, client.data.userId, false);
         if (result.state) this.broadcast(gameId, result);
       } catch (error) { this.logger.debug(error instanceof Error ? error.message : 'Disconnect update skipped'); }
@@ -38,15 +40,23 @@ export class GamesGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('game:subscribe')
   async subscribe(@ConnectedSocket() client: GameSocket, @MessageBody() message: GameMessage) {
-    let state = await this.games.getForUser(message.gameId, client.data.userId);
-    await client.join(this.room(message.gameId));
-    if (!client.data.subscribedGames.includes(message.gameId)) client.data.subscribedGames.push(message.gameId);
-    const connection = await this.games.markConnection(message.gameId, client.data.userId, true);
-    if (connection.state.version !== state.version) {
-      state = connection.state;
-      this.broadcast(message.gameId, connection);
+    try {
+      if (!message?.gameId) throw new Error('Game id is required');
+      let state = await this.games.getForUser(message.gameId, client.data.userId);
+      await client.join(this.room(message.gameId));
+      if (!client.data.subscribedGames.includes(message.gameId)) client.data.subscribedGames.push(message.gameId);
+      const connection = await this.games.markConnection(message.gameId, client.data.userId, true);
+      if (connection.state.version !== state.version) {
+        state = connection.state;
+        this.broadcast(message.gameId, connection);
+      }
+      return { event: 'game:state', data: { state } };
+    } catch (error) {
+      return {
+        event: 'game:error',
+        data: { message: error instanceof Error ? error.message : 'Could not subscribe to game' },
+      };
     }
-    return { event: 'game:state', data: state };
   }
 
   @SubscribeMessage('game:roll')

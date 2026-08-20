@@ -22,6 +22,9 @@ export class GamesController {
   @Post(':id/join')
   join(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) { return this.games.joinRoom(id, user.sub); }
 
+  @Get('active/me')
+  active(@CurrentUser() user: JwtPayload) { return this.games.activeForUser(user.sub); }
+
   @Get(':id/state')
   state(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) { return this.games.getForUser(id, user.sub); }
 
@@ -30,6 +33,9 @@ export class GamesController {
 
   @Post(':id/move')
   move(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string, @Body() dto: MoveTokenDto) { return this.games.move(id, user.sub, dto.tokenIndex); }
+
+  @Post(':id/forfeit')
+  forfeit(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) { return this.games.forfeit(id, user.sub); }
 
   @Post(':id/fattah')
   fattah(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string, @Body() dto: FattahDto) {

@@ -22,7 +22,7 @@ export class GamesService {
     const required = this.playerCount(mode);
     const gameId = randomUUID();
     const roomCode = await this.uniqueRoomCode();
-    const state = this.engine.create(gameId, [{ userId: hostId, team: Team.BLUE }], required === 1);
+    const state = this.engine.create(gameId, [{ userId: hostId, team: Team.BLUE }], false, required);
     return this.prisma.game.create({
       data: {
         id: gameId,
@@ -30,7 +30,7 @@ export class GamesService {
         mode,
         status: GameStatus.WAITING,
         state: state as unknown as Prisma.InputJsonValue,
-        participants: { create: { userId: hostId, team: Team.BLUE } },
+        participants: { create: { userId: hostId, team: Team.BLUE, disconnectedAt: new Date() } },
       },
       select: { id: true, roomCode: true, mode: true, status: true, state: true, createdAt: true },
     });
@@ -53,18 +53,24 @@ export class GamesService {
       if (game.participants.length >= required) throw new BadRequestException('Room is full');
       const team = TEAMS[game.participants.length];
       const players = [...game.participants.map((participant) => ({ userId: participant.userId, team: participant.team })), { userId, team }];
-      const ready = players.length === required;
-      const state = this.engine.create(gameId, players, ready);
+      const previous = game.state as unknown as AuthoritativeGameState;
+      const state = this.engine.create(gameId, players, false, required);
+      for (const player of state.players) {
+        const oldPlayer = previous.players.find((item) => item.userId === player.userId);
+        if (oldPlayer) {
+          player.connected = oldPlayer.connected;
+          player.disconnectedAt = oldPlayer.disconnectedAt;
+        }
+      }
       state.version = game.version + 1;
       await this.prisma.$transaction([
-        this.prisma.gameParticipant.create({ data: { gameId, userId, team } }),
+        this.prisma.gameParticipant.create({ data: { gameId, userId, team, disconnectedAt: new Date() } }),
         this.prisma.game.update({
           where: { id: gameId },
           data: {
             state: state as unknown as Prisma.InputJsonValue,
             version: state.version,
-            status: ready ? GameStatus.ACTIVE : GameStatus.WAITING,
-            startedAt: ready ? new Date() : undefined,
+            status: GameStatus.WAITING,
           },
         }),
       ]);
@@ -78,15 +84,28 @@ export class GamesService {
     if (userIds.length !== required || new Set(userIds).size !== userIds.length) throw new BadRequestException('Incorrect number of unique players');
     const gameId = randomUUID();
     const players = userIds.map((userId, index) => ({ userId, team: TEAMS[index] }));
-    const state = this.engine.create(gameId, players, true);
+    const state = this.engine.create(gameId, players, false, required);
+    const disconnectedAt = new Date();
     await this.prisma.game.create({
       data: {
-        id: gameId, mode, status: GameStatus.ACTIVE,
+        id: gameId,
+        mode,
+        status: GameStatus.WAITING,
         state: state as unknown as Prisma.InputJsonValue,
-        startedAt: new Date(), participants: { create: players },
+        participants: { create: players.map((player) => ({ ...player, disconnectedAt })) },
       },
     });
     return state;
+  }
+
+  async activeForUser(userId: string) {
+    const participants = await this.prisma.gameParticipant.findMany({
+      where: { userId, game: { status: { in: [GameStatus.WAITING, GameStatus.ACTIVE] } } },
+      orderBy: { joinedAt: 'desc' },
+      take: 5,
+      include: { game: { select: { id: true, roomCode: true, mode: true, status: true, state: true, updatedAt: true } } },
+    });
+    return participants.map((participant) => participant.game);
   }
 
   async getForUser(gameId: string, userId: string): Promise<AuthoritativeGameState> {
@@ -137,6 +156,39 @@ export class GamesService {
         where: { gameId_userId: { gameId, userId } },
         data: { disconnectedAt: connected ? null : new Date() },
       });
+      if (result.state.version !== source.version) {
+        await this.store.persist(source.version, result.state);
+        if (source.phase === 'WAITING_PLAYERS' && result.state.phase === 'WAITING_ROLL') {
+          await this.prisma.game.update({
+            where: { id: gameId },
+            data: { status: GameStatus.ACTIVE, startedAt: new Date() },
+          });
+        }
+      }
+      return result;
+    });
+  }
+
+  async staleWaitingGames(): Promise<Array<{ id: string; state: AuthoritativeGameState }>> {
+    const quickCutoff = new Date(Date.now() - 2 * 60_000);
+    const privateCutoff = new Date(Date.now() - 15 * 60_000);
+    const games = await this.prisma.game.findMany({
+      where: {
+        status: GameStatus.WAITING,
+        OR: [
+          { roomCode: null, updatedAt: { lt: quickCutoff } },
+          { roomCode: { not: null }, updatedAt: { lt: privateCutoff } },
+        ],
+      },
+      select: { id: true, state: true },
+    });
+    return games.map((game) => ({ id: game.id, state: game.state as unknown as AuthoritativeGameState }));
+  }
+
+  cancelWaiting(gameId: string): Promise<MoveResult> {
+    return this.lock.run(gameId, async () => {
+      const source = await this.store.get(gameId);
+      const result = this.engine.cancelWaiting(source);
       if (result.state.version !== source.version) await this.store.persist(source.version, result.state);
       return result;
     });

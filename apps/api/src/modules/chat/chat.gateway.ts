@@ -1,6 +1,5 @@
 import { ConnectedSocket, MessageBody, OnGatewayConnection, SubscribeMessage, WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { SocketAuthService } from '../auth/socket-auth.service';
 import { ChatService } from './chat.service';
 
 interface SocketData { userId: string }
@@ -9,13 +8,10 @@ type ChatSocket = Socket<Record<string, never>, Record<string, never>, Record<st
 @WebSocketGateway({ cors: { origin: (process.env.CORS_ORIGINS ?? 'http://localhost:3000').split(','), credentials: true }, transports: ['websocket'] })
 export class ChatGateway implements OnGatewayConnection {
   @WebSocketServer() server!: Server;
-  constructor(private readonly chat: ChatService, private readonly socketAuth: SocketAuthService) {}
+  constructor(private readonly chat: ChatService) {}
 
-  async handleConnection(client: ChatSocket): Promise<void> {
-    try {
-      const payload = await this.socketAuth.validate(String(client.handshake.auth.token ?? ''));
-      client.data.userId = payload.sub;
-    } catch { client.disconnect(true); }
+  handleConnection(client: ChatSocket): void {
+    if (!client.data.userId) client.disconnect(true);
   }
 
   @SubscribeMessage('chat:send')
