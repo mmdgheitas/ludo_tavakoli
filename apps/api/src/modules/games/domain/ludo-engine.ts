@@ -14,7 +14,7 @@ const TEAM_OFFSET: Record<Team, number> = {
 export class LudoEngine {
   constructor(
     private readonly dice: () => number = () => randomInt(1, 7),
-    private readonly turnSeconds = 30,
+    private readonly turnSeconds = 45,
     private readonly reconnectGraceSeconds = 60,
   ) {}
 

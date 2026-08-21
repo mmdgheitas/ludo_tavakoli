@@ -87,6 +87,7 @@ enum SupportTicketStatus {
 model User {
   id               String              @id @default(uuid()) @db.Uuid
   username         String              @unique @db.VarChar(32)
+  email            String?             @unique @db.VarChar(254)
   avatarUrl        String?             @db.VarChar(512)
   coinBalance      Int                 @default(500)
   fattahBalance    Int                 @default(0)
@@ -99,6 +100,7 @@ model User {
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
   refreshSessions  RefreshSession[]
+  passwordResets   PasswordResetToken[]
   gameParticipants GameParticipant[]
   wonGames         Game[]              @relation("GameWinner")
   inventory        Inventory[]
@@ -123,8 +125,22 @@ model RefreshSession {
   ipAddress String?  @db.VarChar(64)
   expiresAt DateTime
   revokedAt DateTime?
+  lastUsedAt DateTime @default(now())
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model PasswordResetToken {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  codeHash   String
+  attempts   Int      @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, expiresAt])
 }

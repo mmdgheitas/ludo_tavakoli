@@ -12,7 +12,7 @@ export class AdminService {
     const take = 25;
     const where = search ? { username: { contains: search, mode: 'insensitive' as const } } : {};
     const [items, total] = await this.prisma.$transaction([
-      this.prisma.user.findMany({ where, skip: (page - 1) * take, take, orderBy: { createdAt: 'desc' }, select: { id: true, username: true, avatarUrl: true, coinBalance: true, fattahBalance: true, vipExpiresAt: true, status: true, role: true, lastSeenAt: true, createdAt: true } }),
+      this.prisma.user.findMany({ where, skip: (page - 1) * take, take, orderBy: { createdAt: 'desc' }, select: { id: true, username: true, email: true, avatarUrl: true, coinBalance: true, fattahBalance: true, vipExpiresAt: true, status: true, role: true, lastSeenAt: true, createdAt: true } }),
       this.prisma.user.count({ where }),
     ]);
     return { items, total, page, pageSize: take };

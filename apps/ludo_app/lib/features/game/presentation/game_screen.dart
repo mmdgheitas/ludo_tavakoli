@@ -7,6 +7,7 @@ import 'package:ludo_app/features/game/data/offline_game_repository.dart';
 import 'package:ludo_app/features/game/data/offline_session_adapter.dart';
 import 'package:ludo_app/features/game/domain/game_snapshot.dart';
 import 'package:ludo_app/features/game/game_engine/ludo_game.dart';
+import 'package:ludo_app/features/game/game_engine/managers/game_state.dart';
 import 'package:ludo_app/features/game/game_engine/models/player_team.dart';
 import 'package:uuid/uuid.dart';
 
@@ -63,6 +64,8 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_save());
+    final game = _game;
+    if (game != null) GameState().detachGame(game);
     super.dispose();
   }
 

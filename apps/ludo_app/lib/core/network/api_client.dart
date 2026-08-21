@@ -12,30 +12,25 @@ class ApiClient {
         )) {
     dio.interceptors.add(QueuedInterceptorsWrapper(
       onRequest: (options, handler) async {
+        final refresh = _refreshing;
+        if (refresh != null) await refresh;
         final token = await _storage.read(key: 'access_token');
         if (token != null) options.headers['Authorization'] = 'Bearer $token';
         handler.next(options);
       },
       onError: (error, handler) async {
-        if (error.response?.statusCode != 401 ||
-            error.requestOptions.extra['retried'] == true) {
+        if (error.response?.statusCode != 401 || error.requestOptions.extra['retried'] == true) {
           return handler.next(error);
         }
         try {
-          final refreshToken = await _storage.read(key: 'refresh_token');
-          if (refreshToken == null) return handler.next(error);
-          final response = await Dio().post<Map<String, dynamic>>(
-            '${AppConfig.apiBaseUrl}/auth/refresh',
-            data: {'refreshToken': refreshToken},
-          );
-          final data = response.data!;
-          await saveTokens(data['accessToken'] as String, data['refreshToken'] as String);
+          await refreshTokens();
+          final accessToken = await readAccessToken();
+          if (accessToken == null) return handler.next(error);
           final request = error.requestOptions;
           request.extra['retried'] = true;
-          request.headers['Authorization'] = 'Bearer ${data['accessToken']}';
+          request.headers['Authorization'] = 'Bearer $accessToken';
           return handler.resolve(await dio.fetch(request));
         } catch (_) {
-          await clearTokens();
           return handler.next(error);
         }
       },
@@ -44,6 +39,31 @@ class ApiClient {
 
   final FlutterSecureStorage _storage;
   final Dio dio;
+  Future<void>? _refreshing;
+
+  Future<void> refreshTokens() {
+    final existing = _refreshing;
+    if (existing != null) return existing;
+    final operation = _performRefresh();
+    _refreshing = operation;
+    return operation.whenComplete(() => _refreshing = null);
+  }
+
+  Future<void> _performRefresh() async {
+    final refreshToken = await _storage.read(key: 'refresh_token');
+    if (refreshToken == null) throw StateError('No refresh token');
+    try {
+      final response = await Dio(BaseOptions(connectTimeout: const Duration(seconds: 10), receiveTimeout: const Duration(seconds: 15)))
+          .post<Map<String, dynamic>>('${AppConfig.apiBaseUrl}/auth/refresh', data: {'refreshToken': refreshToken});
+      final data = response.data!;
+      await saveTokens(data['accessToken'] as String, data['refreshToken'] as String);
+    } catch (_) {
+      await clearTokens();
+      rethrow;
+    }
+  }
+
+  Future<String?> readAccessToken() => _storage.read(key: 'access_token');
 
   Future<void> saveTokens(String accessToken, String refreshToken) async {
     await Future.wait([

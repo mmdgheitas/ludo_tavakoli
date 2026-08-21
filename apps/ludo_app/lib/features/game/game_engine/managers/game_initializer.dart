@@ -18,7 +18,7 @@ class GameInitializer {
     await GameState().clearPlayers();
     await AudioManager.dispose();
 
-    AudioManager.initialize();
+    await AudioManager.initialize();
 
     final ludoBoardPosition = GameState().ludoBoardAbsolutePosition;
     const homeSpotSizeFactorX = 0.10;

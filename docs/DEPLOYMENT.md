@@ -3,7 +3,7 @@
 ## Backend/admin
 
 1. Provision managed PostgreSQL and Redis on private networks.
-2. Copy `apps/api/.env.example` into the deployment secret manager and replace every secret.
+2. Copy `apps/api/.env.example` into the deployment secret manager, replace every secret, and configure SMTP for password recovery. Production startup requires a separate `PASSWORD_RESET_SECRET`.
 3. Build immutable API/admin images. The Dockerfiles run dependency installation, Prisma client generation and production compilation.
 4. Run once: `npm run prisma:migrate --workspace=@manche-irani/api`.
 5. Run seed with `ADMIN_PASSWORD` only for initial catalog/admin setup; remove the secret afterward.

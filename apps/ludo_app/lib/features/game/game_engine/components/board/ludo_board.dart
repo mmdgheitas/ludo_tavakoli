@@ -231,6 +231,7 @@
 
 
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
@@ -259,6 +260,7 @@ import 'package:ludo_app/features/game/game_engine/models/player_team.dart';
 ///      Yellow = D
 class LudoBoard extends PositionComponent {
   late final double _unit;
+  late final ui.Picture _backgroundPicture;
 
   static const Color _woodDark = Color(0xFF24130D);
   static const Color _woodMiddle = Color(0xFF3D2116);
@@ -351,12 +353,18 @@ class LudoBoard extends PositionComponent {
       blueArm,
       yellowHome,
     ]);
+    _backgroundPicture = _recordBackground();
   }
 
   @override
   void render(Canvas canvas) {
     super.render(canvas);
+    canvas.drawPicture(_backgroundPicture);
+  }
 
+  ui.Picture _recordBackground() {
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
     final rect = Rect.fromLTWH(0, 0, size.x, size.y);
     final radius = Radius.circular(_unit * 0.42);
     final boardShape = RRect.fromRectAndRadius(rect, radius);
@@ -392,6 +400,13 @@ class LudoBoard extends PositionComponent {
       ..strokeWidth = math.max(1.5, _unit * 0.045);
 
     canvas.drawRRect(boardShape, borderPaint);
+    return recorder.endRecording();
+  }
+
+  @override
+  void onRemove() {
+    _backgroundPicture.dispose();
+    super.onRemove();
   }
 
   void _drawWoodPlanks(Canvas canvas) {

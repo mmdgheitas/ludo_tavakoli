@@ -57,6 +57,7 @@ class OfflineSessionAdapter {
       ...TokenManager().yellowTokensBase,
     };
 
+    final animations = <Future<void>>[];
     for (final player in target.players) {
       player.totalTokensInHome = 0;
       player.hasWon = snapshot.winner?.name == player.playerId.name;
@@ -68,18 +69,31 @@ class OfflineSessionAdapter {
             snapshot.phase == MatchPhase.waitingForMove &&
             snapshot.pendingDice != null &&
             const LudoRules().canMove(saved, snapshot.pendingDice!);
+        final previousPosition = token.positionId;
+        final previousState = token.state;
         if (saved.progress < 0) {
-          token.positionId = bases[token.tokenId] ?? token.positionId;
+          final basePosition = bases[token.tokenId] ?? token.positionId;
+          token.positionId = basePosition;
           token.state = engine.TokenState.inBase;
-          await target.getComponentForToken(token)?.animateToBase(token.positionId);
+          if (previousState != token.state || previousPosition != basePosition) {
+            final animation = target.getComponentForToken(token)?.animateToBase(basePosition);
+            if (animation != null) animations.add(animation);
+          }
         } else {
           final progress = saved.progress.clamp(0, path.length - 1).toInt();
-          token.positionId = path[progress];
+          final destination = path[progress];
+          token.positionId = destination;
           token.state = progress == path.length - 1 ? engine.TokenState.inHome : engine.TokenState.onBoard;
           if (token.state == engine.TokenState.inHome) player.totalTokensInHome += 1;
-          await target.getComponentForToken(token)?.animateToSpot(token.positionId);
+          if (previousState != token.state || previousPosition != destination) {
+            final animation = target.getComponentForToken(token)?.animateToSpot(destination);
+            if (animation != null) animations.add(animation);
+          }
         }
       }
+    }
+    if (animations.isNotEmpty) {
+      await Future.wait(animations).timeout(const Duration(seconds: 1));
     }
     target.clearTokenTrail();
     target.resizeTokensOnSpot(game.world);

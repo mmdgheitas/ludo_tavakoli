@@ -31,7 +31,8 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
   io.Socket? _socket;
   Ludo? _game;
   GameSnapshot? _latest;
-  Future<void> _animationQueue = Future.value();
+  GameSnapshot? _pendingSnapshot;
+  bool _syncingSnapshot = false;
   Timer? _clock;
   Timer? _chatTimer;
   bool _ready = false;
@@ -45,7 +46,11 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
   bool _commandPending = false;
   Timer? _commandTimer;
   Timer? _diceTimer;
+  Timer? _sessionRenewal;
   int? _lastDice;
+  String? _socketToken;
+  bool _renewingToken = false;
+  DateTime? _lastTokenRefreshAt;
 
   @override
   void initState() {
@@ -96,6 +101,41 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
     if (mounted && _commandPending) setState(() => _commandPending = false);
   }
 
+  void _scheduleSnapshot(GameSnapshot snapshot) {
+    _pendingSnapshot = snapshot;
+    if (!_syncingSnapshot) unawaited(_drainSnapshots());
+  }
+
+  Future<void> _drainSnapshots() async {
+    _syncingSnapshot = true;
+    try {
+      while (mounted && _pendingSnapshot != null && _game != null) {
+        final snapshot = _pendingSnapshot!;
+        _pendingSnapshot = null;
+        try {
+          await _adapter.restore(_game!, snapshot);
+          if (!_isMyTurn) {
+            for (final player in GameState().players) {
+              for (final token in player.tokens) {
+                token.enableToken = false;
+              }
+            }
+          }
+        } catch (_) {
+          // A failed animation must never poison later authoritative updates.
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('نمایش بازی دوباره همگام شد.')),
+            );
+          }
+        }
+      }
+    } finally {
+      _syncingSnapshot = false;
+      if (mounted && _pendingSnapshot != null) _scheduleSnapshot(_pendingSnapshot!);
+    }
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -106,20 +146,35 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
       teams,
       context,
       commandSink: _commandSink,
-      onReady: (game) async {
+      onReady: (_) {
         _ready = true;
-        if (_latest != null && _phase != 'WAITING_PLAYERS') {
-          await _adapter.restore(game, _latest!);
-          if (!_isMyTurn) {
-            for (final player in GameState().players) {
-              for (final token in player.tokens) {
-                token.enableToken = false;
-              }
-            }
-          }
-        }
+        if (_latest != null && _phase != 'WAITING_PLAYERS') _scheduleSnapshot(_latest!);
+        return Future.value();
       },
     );
+  }
+
+  Future<void> _renewSocketToken({bool reconnect = false}) async {
+    if (_renewingToken || !mounted) return;
+    _renewingToken = true;
+    try {
+      final client = ref.read(apiClientProvider);
+      await client.refreshTokens();
+      _socketToken = await client.readAccessToken();
+      _lastTokenRefreshAt = DateTime.now();
+      final socket = _socket;
+      if (socket != null && _socketToken != null) {
+        socket.auth = {'token': _socketToken};
+        if (reconnect && !socket.connected) {
+          socket.disconnect();
+          socket.connect();
+        }
+      }
+    } catch (_) {
+      if (mounted) setState(() => _connectionLabel = 'نشست منقضی شده است');
+    } finally {
+      _renewingToken = false;
+    }
   }
 
   Future<void> _connect() async {
@@ -133,11 +188,20 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
     }
     final token = await ref.read(secureStorageProvider).read(key: 'access_token');
     if (token == null || !mounted) return;
+    _socketToken = token;
+    _lastTokenRefreshAt = DateTime.now();
+    _sessionRenewal ??= Timer.periodic(
+      const Duration(minutes: 9),
+      (_) => unawaited(_renewSocketToken()),
+    );
     final socket = io.io(
       AppConfig.socketBaseUrl,
       io.OptionBuilder().setTransports(['websocket']).setAuth({'token': token}).enableReconnection().setReconnectionAttempts(10).disableAutoConnect().build(),
     );
     _socket = socket;
+    socket.io.on('reconnect_attempt', (_) {
+      if (_socketToken != null) socket.auth = {'token': _socketToken};
+    });
     socket
       ..onConnect((_) {
         if (mounted) setState(() => _connectionLabel = 'آنلاین');
@@ -149,6 +213,10 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
       })
       ..onConnectError((_) {
         _unlockCommands();
+        final lastRefresh = _lastTokenRefreshAt;
+        if (lastRefresh == null || DateTime.now().difference(lastRefresh) >= const Duration(minutes: 8)) {
+          unawaited(_renewSocketToken(reconnect: true));
+        }
         if (mounted) setState(() => _connectionLabel = 'خطا در اتصال');
       })
       ..on('game:state', _handleState)
@@ -195,6 +263,7 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
     final rolledDice = (outer['dice'] as num?)?.toInt();
     if (rolledDice != null) {
       _lastDice = rolledDice;
+      if (_ready) _game?.animateDiceValue(rolledDice);
       _diceTimer?.cancel();
       _diceTimer = Timer(const Duration(seconds: 2), () {
         if (mounted) setState(() => _lastDice = null);
@@ -222,16 +291,7 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
     _phase = rawState['phase']?.toString() ?? 'WAITING_PLAYERS';
     _deadline = DateTime.tryParse(rawState['turnDeadlineAt']?.toString() ?? '');
     if (_ready && _game != null && _phase != 'WAITING_PLAYERS') {
-      _animationQueue = _animationQueue.then((_) async {
-        await _adapter.restore(_game!, snapshot);
-        if (!_isMyTurn) {
-          for (final player in GameState().players) {
-            for (final token in player.tokens) {
-              token.enableToken = false;
-            }
-          }
-        }
-      });
+      _scheduleSnapshot(snapshot);
     }
     if (mounted) setState(() {});
   }
@@ -280,8 +340,11 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
     _chatTimer?.cancel();
     _commandTimer?.cancel();
     _diceTimer?.cancel();
+    _sessionRenewal?.cancel();
+    _pendingSnapshot = null;
     _socket?.dispose();
-    if (GameState().commandSink == _commandSink) GameState().commandSink = null;
+    final game = _game;
+    if (game != null) GameState().detachGame(game);
     super.dispose();
   }
 

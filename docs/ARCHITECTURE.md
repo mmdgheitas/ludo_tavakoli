@@ -38,6 +38,9 @@ Offline random dice and local state are allowed only for pass-and-play. Offline 
 5. PostgreSQL updates only when `version = expectedVersion`; rewards and completion are in the same transaction.
 6. Redis cache is replaced and the accepted snapshot is broadcast to the room.
 7. On reconnect, the client discovers resumable matches through `GET /games/active/me`, calls `game:subscribe`, and replaces local online state. Duplicate device sockets are accounted for before a player is marked disconnected.
+8. The Flutter state synchronizer coalesces superseded snapshots, animates only changed pieces in parallel, and continues after animation errors instead of poisoning the update queue.
+
+Turn deadlines are indexed in a Redis sorted set, so lifecycle workers process only due matches rather than loading every active game every five seconds.
 
 A command cannot be replayed against an old version. Purchase and wallet mutations use unique idempotency keys.
 

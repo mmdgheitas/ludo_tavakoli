@@ -68,6 +68,16 @@ export class GameStateStore {
   async invalidate(gameId: string): Promise<void> {
     await this.redis.ensureConnected();
     await this.redis.client.del(this.key(gameId));
+    await this.redis.client.zrem(this.deadlinesKey, gameId);
+  }
+
+  async prime(state: AuthoritativeGameState): Promise<void> {
+    await this.cache(state);
+  }
+
+  async dueGameIds(now = Date.now()): Promise<string[]> {
+    await this.redis.ensureConnected();
+    return this.redis.client.zrangebyscore(this.deadlinesKey, 0, now);
   }
 
   private async awardWinner(tx: Prisma.TransactionClient, gameId: string, userId: string): Promise<void> {
@@ -91,8 +101,15 @@ export class GameStateStore {
 
   private async cache(state: AuthoritativeGameState): Promise<void> {
     await this.redis.ensureConnected();
-    await this.redis.client.set(this.key(state.gameId), JSON.stringify(state), 'EX', 3600);
+    const transaction = this.redis.client.multi().set(this.key(state.gameId), JSON.stringify(state), 'EX', 3600);
+    if (state.turnDeadlineAt && state.phase !== 'FINISHED' && state.phase !== 'WAITING_PLAYERS') {
+      transaction.zadd(this.deadlinesKey, Date.parse(state.turnDeadlineAt), state.gameId);
+    } else {
+      transaction.zrem(this.deadlinesKey, state.gameId);
+    }
+    await transaction.exec();
   }
 
+  private readonly deadlinesKey = 'game:turn-deadlines';
   private key(gameId: string): string { return `game:${gameId}:state`; }
 }

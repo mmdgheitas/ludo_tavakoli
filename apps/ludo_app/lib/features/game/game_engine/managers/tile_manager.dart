@@ -34,5 +34,6 @@ class TileManager {
 
   void clear() {
     _spotMap.clear();
+    _homeSpotMap.clear();
   }
 }

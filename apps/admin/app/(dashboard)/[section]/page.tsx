@@ -6,7 +6,7 @@ import { notFound } from 'next/navigation';
 type Row = Record<string, unknown>;
 type Config = { title: string; subtitle: string; endpoint: string; columns: Array<{ key: string; label: string }> };
 const configs: Record<string, Config> = {
-  users: { title: 'مدیریت کاربران', subtitle: 'جست‌وجو، مسدودسازی و ارسال پاداش', endpoint: '/admin/users', columns: [{ key: 'username', label: 'نام کاربر' }, { key: 'coinBalance', label: 'سکه' }, { key: 'fattahBalance', label: 'فتاح' }, { key: 'status', label: 'وضعیت' }, { key: 'createdAt', label: 'عضویت' }] },
+  users: { title: 'مدیریت کاربران', subtitle: 'جست‌وجو، مسدودسازی و ارسال پاداش', endpoint: '/admin/users', columns: [{ key: 'username', label: 'نام کاربر' }, { key: 'email', label: 'ایمیل' }, { key: 'coinBalance', label: 'سکه' }, { key: 'fattahBalance', label: 'فتاح' }, { key: 'status', label: 'وضعیت' }, { key: 'createdAt', label: 'عضویت' }] },
   games: { title: 'بازی‌ها', subtitle: 'پایش مسابقه‌های آنلاین و نتیجه‌ها', endpoint: '/admin/games', columns: [{ key: 'id', label: 'شناسه' }, { key: 'mode', label: 'حالت' }, { key: 'status', label: 'وضعیت' }, { key: 'rewardCoins', label: 'پاداش' }, { key: 'createdAt', label: 'شروع' }] },
   shop: { title: 'فروشگاه', subtitle: 'مدیریت ویترین و قیمت‌گذاری محصولات', endpoint: '/admin/items', columns: [{ key: 'nameFa', label: 'محصول' }, { key: 'type', label: 'نوع' }, { key: 'coinPrice', label: 'قیمت سکه‌ای' }, { key: 'active', label: 'فعال' }] },
   items: { title: 'آیتم‌های بازی', subtitle: 'پوسته‌ها، مهره‌ها و آواتارها', endpoint: '/admin/items', columns: [{ key: 'sku', label: 'SKU' }, { key: 'nameFa', label: 'نام' }, { key: 'type', label: 'نوع' }, { key: 'coinPrice', label: 'قیمت' }, { key: 'active', label: 'وضعیت' }] },

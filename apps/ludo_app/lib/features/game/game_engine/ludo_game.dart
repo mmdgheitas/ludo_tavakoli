@@ -1,10 +1,8 @@
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
-import 'package:flame/effects.dart';
 import 'package:flame/input.dart';
 import 'package:flutter/material.dart';
 
-import 'package:ludo_app/features/game/game_engine/components/home/home.dart';
 import 'package:ludo_app/features/game/game_engine/managers/game_state.dart';
 import 'package:ludo_app/features/game/game_engine/managers/game_command_sink.dart';
 import 'package:ludo_app/features/game/game_engine/components/controls/upper_controller.dart';
@@ -15,6 +13,8 @@ import 'package:ludo_app/features/game/game_engine/components/overlays/rank_moda
 import 'package:ludo_app/features/game/game_engine/models/player_team.dart';
 import 'package:ludo_app/features/game/game_engine/managers/ludo_layout_config.dart';
 import 'package:ludo_app/features/game/game_engine/managers/game_initializer.dart';
+import 'package:ludo_app/features/game/game_engine/managers/tile_manager.dart';
+import 'package:ludo_app/features/game/game_engine/managers/token_manager.dart';
 
 class Ludo extends FlameGame
     with HasCollisionDetection, KeyboardEvents, TapDetector {
@@ -31,8 +31,7 @@ class Ludo extends FlameGame
   late UpperController _upperController;
   late LowerController _lowerController;
 
-  final Map<PlayerTeam, ColorEffect> _blinkEffects = {};
-  final Map<PlayerTeam, ColorEffect> _staticEffects = {};
+  PlayerTeam? _activeTeam;
 
   static final Map<PlayerTeam, TeamBaseConfig> _teamConfigs = {
     PlayerTeam.red: TeamBaseConfig(
@@ -117,45 +116,15 @@ class Ludo extends FlameGame
   }
 
   void blinkBaseForTeam(PlayerTeam team) {
+    if (_activeTeam == team) return;
     for (final t in PlayerTeam.values) {
-      _updateBaseBlinkAndDice(t, t == team);
+      _updateDiceForTeam(t, t == team);
     }
+    _activeTeam = team;
   }
 
-  void _updateBaseBlinkAndDice(PlayerTeam team, bool shouldBlink) {
+  void _updateDiceForTeam(PlayerTeam team, bool shouldBlink) {
     final config = _teamConfigs[team]!;
-
-    final childrenOfLudoBoard = GameState().ludoBoard?.children.toList();
-    if (childrenOfLudoBoard == null || childrenOfLudoBoard.length <= config.homePlateIndex) {
-      return;
-    }
-    final child = childrenOfLudoBoard[config.homePlateIndex];
-    final homePlate = child.children.whereType<Home>().firstOrNull;
-    if (homePlate == null) return;
-
-    // Initialize effects if they haven't been created yet
-    _blinkEffects[team] ??= ColorEffect(
-      config.blinkColor,
-      EffectController(
-        duration: 0.2,
-        reverseDuration: 0.2,
-        infinite: true,
-        alternate: true,
-      ),
-    );
-
-    _staticEffects[team] ??= ColorEffect(
-      config.staticColor,
-      EffectController(
-        duration: 0.2,
-        reverseDuration: 0.2,
-        infinite: true,
-        alternate: true,
-      ),
-    );
-
-    // Add the appropriate effect based on shouldBlink
-    homePlate.add(shouldBlink ? _blinkEffects[team]! : _staticEffects[team]!);
 
     // Dice configuration
     final PositionComponent controller = config.isUpper ? _upperController : _lowerController;
@@ -202,6 +171,12 @@ class Ludo extends FlameGame
     dice?.diceFace.updateDiceValue(value);
   }
 
+  void animateDiceValue(int value) {
+    if (value < 1 || value > 6) return;
+    final dice = _findDice(_upperController) ?? _findDice(_lowerController);
+    dice?.showServerRoll(value);
+  }
+
   LudoDice? _findDice(Component root) {
     if (root is LudoDice) return root;
     for (final child in root.children) {
@@ -217,6 +192,14 @@ class Ludo extends FlameGame
 
   @override
   Color backgroundColor() => const Color.fromARGB(0, 0, 0, 0);
+
+  @override
+  void onRemove() {
+    GameState().detachGame(this);
+    TokenManager().allTokens.clear();
+    TileManager().clear();
+    super.onRemove();
+  }
 
   RankModalComponent? _playerModal;
 

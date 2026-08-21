@@ -2,7 +2,9 @@
 
 ## Controls in source
 
-- Short-lived JWT access tokens and rotating, hashed refresh sessions.
+- Username/email registration with bcrypt password hashing, short-lived JWT access tokens and rotating, hashed refresh sessions.
+- Hashed, six-digit, single-use password-recovery codes with expiry, attempt limits and SMTP delivery.
+- Session IDs are embedded in access/refresh tokens; revoked sessions are rejected immediately by HTTP and Socket.IO authentication.
 - Bans checked on every authenticated HTTP request; refresh sessions revoked on ban.
 - Global and sensitive-route throttles, validation whitelist and unknown-field rejection.
 - Prisma parameterization, strict DTOs, Helmet, explicit CORS and no raw client SQL.

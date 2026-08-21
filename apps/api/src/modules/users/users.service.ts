@@ -11,7 +11,7 @@ export class UsersService {
     const user = await this.prisma.user.findUnique({
       where: { id },
       select: {
-        id: true, username: true, avatarUrl: true, coinBalance: true,
+        id: true, username: true, email: true, avatarUrl: true, coinBalance: true,
         fattahBalance: true, vipExpiresAt: true, role: true, status: true, createdAt: true,
       },
     });
@@ -24,8 +24,8 @@ export class UsersService {
     try {
       return await this.prisma.user.update({
         where: { id },
-        data: { username: dto.username?.trim(), avatarUrl: dto.avatarUrl },
-        select: { id: true, username: true, avatarUrl: true, coinBalance: true, fattahBalance: true, vipExpiresAt: true },
+        data: { username: dto.username?.trim().replace(/\s+/g, '_').toLowerCase(), avatarUrl: dto.avatarUrl },
+        select: { id: true, username: true, email: true, avatarUrl: true, coinBalance: true, fattahBalance: true, vipExpiresAt: true },
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {

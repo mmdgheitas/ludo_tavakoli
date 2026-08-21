@@ -8,7 +8,7 @@ if (!connectionString) throw new Error('DATABASE_URL is required');
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 
 async function main(): Promise<void> {
-  const username = process.env.ADMIN_USERNAME ?? 'admin';
+  const username = (process.env.ADMIN_USERNAME ?? 'admin').trim().toLowerCase();
   const password = process.env.ADMIN_PASSWORD;
   if (!password || password.length < 10) throw new Error('Set ADMIN_PASSWORD to at least 10 characters before seeding');
   await prisma.user.upsert({

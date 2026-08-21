@@ -194,12 +194,28 @@ export class GamesService {
     });
   }
 
-  async activeStates(): Promise<Array<{ id: string; state: AuthoritativeGameState; participants: Array<{ userId: string; disconnectedAt: Date | null }> }>> {
+  async rebuildLifecycleIndex(): Promise<void> {
     const games = await this.prisma.game.findMany({
       where: { status: GameStatus.ACTIVE },
-      select: { id: true, state: true, participants: { select: { userId: true, disconnectedAt: true } } },
+      select: { state: true },
     });
-    return games.map((game) => ({ ...game, state: game.state as unknown as AuthoritativeGameState }));
+    await Promise.all(games.map((game) => this.store.prime(game.state as unknown as AuthoritativeGameState)));
+  }
+
+  dueTurnGameIds(): Promise<string[]> {
+    return this.store.dueGameIds();
+  }
+
+  async disconnectedCandidates(): Promise<Array<{ gameId: string; userId: string }>> {
+    const cutoff = new Date(Date.now() - 60_000);
+    const participants = await this.prisma.gameParticipant.findMany({
+      where: {
+        disconnectedAt: { lte: cutoff },
+        game: { status: GameStatus.ACTIVE },
+      },
+      select: { gameId: true, userId: true },
+    });
+    return participants;
   }
 
   async useFattah(gameId: string, userId: string, targetUserId: string, targetTokenIndex: number): Promise<MoveResult> {

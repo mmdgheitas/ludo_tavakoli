@@ -4,6 +4,7 @@ import 'package:ludo_app/core/providers.dart';
 import 'package:ludo_app/core/theme/app_theme.dart';
 import 'package:ludo_app/features/profile/presentation/inventory_screen.dart';
 import 'package:ludo_app/features/profile/presentation/settings_screen.dart';
+import 'package:ludo_app/features/profile/presentation/sessions_screen.dart';
 import 'package:ludo_app/features/profile/presentation/support_screen.dart';
 import 'package:ludo_app/features/profile/presentation/transactions_screen.dart';
 
@@ -46,6 +47,7 @@ class ProfileScreen extends ConsumerWidget {
             _Tile(icon: Icons.inventory_2_outlined, title: 'دارایی‌های من', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const InventoryScreen()))), const Divider(height: 1),
             _Tile(icon: Icons.receipt_long_outlined, title: 'تاریخچه تراکنش‌ها', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TransactionsScreen()))), const Divider(height: 1),
             _Tile(icon: Icons.settings_outlined, title: 'تنظیمات', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()))), const Divider(height: 1),
+            _Tile(icon: Icons.devices_outlined, title: 'نشست‌های فعال', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SessionsScreen()))), const Divider(height: 1),
             _Tile(icon: Icons.support_agent_rounded, title: 'پشتیبانی', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SupportScreen()))),
           ])),
           const SizedBox(height: 20),

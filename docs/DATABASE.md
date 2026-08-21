@@ -4,7 +4,7 @@ The canonical schema is `apps/api/prisma/schema.prisma`; the initial PostgreSQL 
 
 ## Main aggregates
 
-- **User / RefreshSession**: identity, role/status, balances, VIP expiration and revocable refresh sessions.
+- **User / RefreshSession / PasswordResetToken**: username/email credentials, bcrypt password hash, role/status, balances, VIP expiration, revocable live sessions and single-use recovery codes.
 - **Game / GameParticipant**: durable authoritative JSON snapshot plus indexed relational participants, winner and results.
 - **Item / Inventory**: backend-controlled catalog and per-user quantity/equip state.
 - **WalletTransaction**: append-only audit ledger with globally unique idempotency key. `User.coinBalance` is the fast materialized balance.

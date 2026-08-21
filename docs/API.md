@@ -6,7 +6,7 @@ Base path: `/api/v1`. Interactive OpenAPI is served at `/docs`.
 
 | Area | Endpoints |
 |---|---|
-| Auth | `POST /auth/guest`, `/auth/refresh`, `/auth/admin/login`, `/auth/logout` |
+| Auth | `POST /auth/register`, `/auth/login`, `/auth/password/forgot`, `/auth/password/reset`, `/auth/refresh`, `/auth/logout`; `GET /auth/sessions`, `POST /auth/session/heartbeat`, `DELETE /auth/sessions/:id` |
 | User | `GET/PATCH /users/me` |
 | Games | `POST /games/rooms`, `POST /games/rooms/join`, `GET /games/active/me`, `POST /games/:id/join`, `GET /games/:id/state`, `POST /games/:id/roll`, `/move`, `/fattah`, `/forfeit` |
 | Wallet | `GET /wallet/transactions`, `POST /wallet/daily-reward` |

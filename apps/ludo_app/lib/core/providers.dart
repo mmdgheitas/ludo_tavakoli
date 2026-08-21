@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:ludo_app/core/network/api_client.dart';
@@ -16,27 +18,56 @@ final currentUserProvider = StateNotifierProvider<AuthController, AsyncValue<Use
 );
 
 class AuthController extends StateNotifier<AsyncValue<UserProfile?>> {
-  AuthController(this._repository) : super(const AsyncValue.loading()) {
-    restore();
-  }
-
+  AuthController(this._repository) : super(const AsyncValue.loading()) { unawaited(restore()); }
   final AuthRepository _repository;
+  Timer? _heartbeat;
 
   Future<void> restore() async {
     try {
-      state = AsyncValue.data(await _repository.me());
+      final user = await _repository.me();
+      state = AsyncValue.data(user);
+      if (user != null) _startHeartbeat();
     } catch (_) {
       state = const AsyncValue.data(null);
+      _heartbeat?.cancel();
     }
+  }
+
+  Future<void> login({required String identifier, required String password}) async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() => _repository.login(identifier: identifier, password: password));
+    if (state.value != null) _startHeartbeat();
+  }
+
+  Future<void> register({required String username, required String email, required String password}) async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() => _repository.register(username: username, email: email, password: password));
+    if (state.value != null) _startHeartbeat();
   }
 
   Future<void> enter({String? displayName}) async {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() => _repository.createGuest(displayName: displayName));
+    if (state.value != null) _startHeartbeat();
   }
 
   Future<void> logout() async {
+    _heartbeat?.cancel();
     await _repository.logout();
     state = const AsyncValue.data(null);
+  }
+
+  void _startHeartbeat() {
+    _heartbeat?.cancel();
+    unawaited(_repository.heartbeat().catchError((_) {}));
+    _heartbeat = Timer.periodic(const Duration(minutes: 4), (_) {
+      unawaited(_repository.heartbeat().catchError((_) {}));
+    });
+  }
+
+  @override
+  void dispose() {
+    _heartbeat?.cancel();
+    super.dispose();
   }
 }

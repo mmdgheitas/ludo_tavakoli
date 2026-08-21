@@ -66,6 +66,12 @@ class LudoDice extends PositionComponent with TapCallbacks, HasGameReference<Lud
     GameState().resolveDiceRoll(world);
   }
 
+  void showServerRoll(int value) {
+    diceFace.updateDiceValue(value);
+    playSound();
+    _applyDiceRollEffect();
+  }
+
   // Apply a 360-degree rotation effect to the dice
   FutureOr<void> _applyDiceRollEffect() {
     add(

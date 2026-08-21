@@ -7,6 +7,7 @@ import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { JwtStrategy } from './jwt.strategy';
 import { SocketAuthService } from './socket-auth.service';
+import { MailService } from './mail.service';
 
 @Module({
   imports: [
@@ -21,7 +22,7 @@ import { SocketAuthService } from './socket-auth.service';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, JwtAuthGuard, SocketAuthService],
+  providers: [AuthService, JwtStrategy, JwtAuthGuard, SocketAuthService, MailService],
   exports: [AuthService, JwtModule, JwtAuthGuard, SocketAuthService],
 })
 export class AuthModule {}

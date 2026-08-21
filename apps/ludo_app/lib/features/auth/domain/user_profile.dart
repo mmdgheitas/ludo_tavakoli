@@ -3,6 +3,7 @@ class UserProfile {
     required this.id,
     required this.username,
     required this.coinBalance,
+    this.email,
     required this.fattahBalance,
     this.avatarUrl,
     this.vipExpiresAt,
@@ -10,6 +11,7 @@ class UserProfile {
 
   final String id;
   final String username;
+  final String? email;
   final int coinBalance;
   final int fattahBalance;
   final String? avatarUrl;
@@ -20,6 +22,7 @@ class UserProfile {
   factory UserProfile.fromJson(Map<String, dynamic> json) => UserProfile(
     id: json['id'] as String,
     username: json['username'] as String,
+    email: json['email'] as String?,
     coinBalance: (json['coinBalance'] as num?)?.toInt() ?? 0,
     fattahBalance: (json['fattahBalance'] as num?)?.toInt() ?? 0,
     avatarUrl: json['avatarUrl'] as String?,

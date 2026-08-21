@@ -189,9 +189,14 @@ class TokenComponent extends PositionComponent with TapCallbacks, HasGameReferen
   @override
   void update(double dt) {
     super.update(dt);
-
-    // Update the timer for the animation
     _circleAnimationTimer?.update(dt);
+  }
+
+  @override
+  void onRemove() {
+    _circleAnimationTimer?.stop();
+    _circleAnimationTimer = null;
+    super.onRemove();
   }
 
   @override

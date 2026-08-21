@@ -22,7 +22,7 @@ class GameState {
   // Singleton instance
   static final GameState _instance = GameState._();
 
-  late Ludo game;
+  Ludo? game;
   GameCommandSink? commandSink;
   static const List<String> safeSpots = [
     'B04',
@@ -101,13 +101,13 @@ class GameState {
   }
 
   void hidePointer() {
-    game.switchOffPointer();
+    game?.switchOffPointer();
   }
 
   void switchToNextPlayer() {
     changeState(LudoGameState.needRoll);
     var current = currentPlayer;
-    game.switchOffPointer();
+    game?.switchOffPointer();
     current.resetExtraTurns();
 
     // Loop to find the next player who hasn't won
@@ -122,7 +122,7 @@ class GameState {
       token.enableToken = false;
     }
 
-    game.blinkBaseForTeam(nextPlayer.playerId);
+    game?.blinkBaseForTeam(nextPlayer.playerId);
   }
 
   // Get the current player
@@ -134,7 +134,17 @@ class GameState {
     diceNumber = 5;
     _tokenComponentMap.clear();
     changeState(LudoGameState.needRoll);
-    return Future.value();
+  }
+
+  void detachGame(Ludo value) {
+    if (!identical(game, value)) return;
+    game = null;
+    commandSink = null;
+    ludoBoard = null;
+    ludoBoardAbsolutePosition = Vector2.zero();
+    players.clear();
+    _tokenComponentMap.clear();
+    currentPlayerIndex = 0;
   }
 
   static const blueTokenPath = [
@@ -640,7 +650,7 @@ class GameState {
         for (var t in TokenManager().allTokens) {
           t.enableToken = false;
         }
-        game.showPlayerModal();
+        game?.showPlayerModal();
       } else {
         player.rank = playersWhoWon.length;
       }
