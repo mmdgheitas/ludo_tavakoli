@@ -39,3 +39,4 @@ flutter:
     - assets/audio/move.mp3
     - assets/audio/dice.mp3
     - assets/icon/app_icon.jpg
+    - assets/images/ludo_board.png

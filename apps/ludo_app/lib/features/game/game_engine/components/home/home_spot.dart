@@ -4,28 +4,18 @@ import 'package:ludo_app/features/game/game_engine/managers/tile_manager.dart';
 
 class HomeSpot extends CircleComponent {
   final String uniqueId;
-  static final Paint borderPaint = Paint()
-    ..color = Colors.transparent // Keep interior transparent
-    ..style = PaintingStyle.stroke // Set to stroke for the border
-    ..strokeWidth = 1.0; // Set border width
 
   HomeSpot({
     required double radius,
     required Vector2 position,
     required Paint paint,
-    required this.uniqueId, // Accept uniqueId
-  }) : super(
-          radius: radius,
-          position: position,
-          paint: paint,
-          children: [
-            // Add a child CircleComponent to draw the border
-            CircleComponent(
-              radius: radius,
-              paint: borderPaint, // Reuse static border paint
-            ),
-          ],
-        ) {
+    required this.uniqueId,
+  }) : super(radius: radius, position: position, paint: paint) {
     TileManager().registerHomeSpot(uniqueId, this);
+  }
+
+  @override
+  void render(Canvas canvas) {
+    if (paint.color != Colors.transparent) super.render(canvas);
   }
 }

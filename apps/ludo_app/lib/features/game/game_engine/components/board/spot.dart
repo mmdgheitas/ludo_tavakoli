@@ -38,6 +38,11 @@ class Spot extends RectangleComponent {
   }
 
   @override
+  void render(Canvas canvas) {
+    if (paint.color != Colors.transparent) super.render(canvas);
+  }
+
+  @override
   void onLoad() {
     super.onLoad();
     final tokenWidth = size.x * 0.80;
