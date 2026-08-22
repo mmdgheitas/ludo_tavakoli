@@ -1,5 +1,7 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:ludo_app/core/config/app_config.dart';
 import 'package:ludo_app/core/providers.dart';
 import 'package:ludo_app/core/theme/app_theme.dart';
 import 'package:ludo_app/features/auth/presentation/password_recovery_screen.dart';
@@ -18,6 +20,15 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
   bool obscure = true;
 
   @override void dispose() { username.dispose(); email.dispose(); password.dispose(); super.dispose(); }
+
+  String errorMessage(Object? error) {
+    if (error is DioException && error.type == DioExceptionType.connectionError) {
+      return 'سرور در دسترس نیست. آدرس فعلی: ${AppConfig.apiBaseUrl}';
+    }
+    return registerMode
+        ? 'نام کاربری یا ایمیل قبلاً استفاده شده، یا اطلاعات معتبر نیست.'
+        : 'نام کاربری/ایمیل یا رمز عبور صحیح نیست.';
+  }
 
   Future<void> submit() async {
     if (!(formKey.currentState?.validate() ?? false)) return;
@@ -87,7 +98,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                     onFieldSubmitted: (_) => submit(),
                   ),
                   if (!registerMode) Align(alignment: AlignmentDirectional.centerEnd, child: TextButton(onPressed: auth.isLoading ? null : () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PasswordRecoveryScreen())), child: const Text('رمز عبور را فراموش کرده‌اید؟'))),
-                  if (auth.hasError) Padding(padding: const EdgeInsets.only(bottom: 10), child: Text(registerMode ? 'نام کاربری یا ایمیل قبلاً استفاده شده، یا اطلاعات معتبر نیست.' : 'نام کاربری/ایمیل یا رمز عبور صحیح نیست.', textAlign: TextAlign.center, style: const TextStyle(color: AppColors.coral, fontSize: 12))),
+                  if (auth.hasError) Padding(padding: const EdgeInsets.only(bottom: 10), child: Text(errorMessage(auth.error), textAlign: TextAlign.center, style: const TextStyle(color: AppColors.coral, fontSize: 12))),
                   FilledButton(
                     onPressed: auth.isLoading ? null : submit,
                     child: auth.isLoading ? const SizedBox.square(dimension: 24, child: CircularProgressIndicator(strokeWidth: 2)) : Text(registerMode ? 'ساخت حساب و ورود' : 'ورود به حساب'),

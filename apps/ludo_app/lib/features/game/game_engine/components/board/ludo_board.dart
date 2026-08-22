@@ -812,6 +812,7 @@ class _BoardHole extends PositionComponent {
   final bool isFinishLane;
   final bool isSafe;
   final bool isFinal;
+  late final ui.Picture _picture;
 
   _BoardHole({
     required this.unit,
@@ -820,12 +821,19 @@ class _BoardHole extends PositionComponent {
     this.isFinishLane = false,
     this.isSafe = false,
     this.isFinal = false,
-  }) : super(size: Vector2.all(unit));
+  }) : super(size: Vector2.all(unit)) {
+    _picture = _recordPicture();
+  }
 
   @override
   void render(Canvas canvas) {
     super.render(canvas);
+    canvas.drawPicture(_picture);
+  }
 
+  ui.Picture _recordPicture() {
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
     final center = Offset(unit / 2, unit / 2);
     final radius = unit * (isFinal ? 0.41 : 0.385);
 
@@ -838,6 +846,13 @@ class _BoardHole extends PositionComponent {
     if (isSafe && !isStart && !isFinishLane) {
       _drawSafeMark(canvas, center, radius);
     }
+    return recorder.endRecording();
+  }
+
+  @override
+  void onRemove() {
+    _picture.dispose();
+    super.onRemove();
   }
 
   void _drawEmptySpace(
@@ -984,6 +999,7 @@ class _WoodRing extends PositionComponent {
   final double strokeWidth;
   final Color lineColor;
   final bool glow;
+  late final ui.Picture _picture;
 
   _WoodRing({
     required Vector2 size,
@@ -995,12 +1011,19 @@ class _WoodRing extends PositionComponent {
   }) : super(
           size: size,
           position: position,
-        );
+        ) {
+    _picture = _recordPicture();
+  }
 
   @override
   void render(Canvas canvas) {
     super.render(canvas);
+    canvas.drawPicture(_picture);
+  }
 
+  ui.Picture _recordPicture() {
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
     final center = Offset(size.x / 2, size.y / 2);
     final radius = size.x * radiusFactor;
 
@@ -1036,11 +1059,19 @@ class _WoodRing extends PositionComponent {
       false,
       highlightPaint,
     );
+    return recorder.endRecording();
+  }
+
+  @override
+  void onRemove() {
+    _picture.dispose();
+    super.onRemove();
   }
 }
 
 class _StartCaption extends PositionComponent {
   final String arrow;
+  late final ui.Picture _picture;
 
   _StartCaption({
     required Vector2 position,
@@ -1049,12 +1080,19 @@ class _StartCaption extends PositionComponent {
   }) : super(
           position: position,
           size: size,
-        );
+        ) {
+    _picture = _recordPicture();
+  }
 
   @override
   void render(Canvas canvas) {
     super.render(canvas);
+    canvas.drawPicture(_picture);
+  }
 
+  ui.Picture _recordPicture() {
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
     final center = Offset(size.x / 2, size.y / 2);
 
     _drawCenteredText(
@@ -1075,22 +1113,38 @@ class _StartCaption extends PositionComponent {
       fontWeight: FontWeight.w800,
       letterSpacing: 0.8,
     );
+    return recorder.endRecording();
+  }
+
+  @override
+  void onRemove() {
+    _picture.dispose();
+    super.onRemove();
   }
 }
 
 class _CenterMedallion extends PositionComponent {
+  late final ui.Picture _picture;
+
   _CenterMedallion({
     required Vector2 position,
     required Vector2 size,
   }) : super(
           position: position,
           size: size,
-        );
+        ) {
+    _picture = _recordPicture();
+  }
 
   @override
   void render(Canvas canvas) {
     super.render(canvas);
+    canvas.drawPicture(_picture);
+  }
 
+  ui.Picture _recordPicture() {
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
     final center = Offset(size.x / 2, size.y / 2);
     final radius = size.x * 0.27;
 
@@ -1138,6 +1192,13 @@ class _CenterMedallion extends PositionComponent {
       ..close();
 
     canvas.drawPath(path, diamondPaint);
+    return recorder.endRecording();
+  }
+
+  @override
+  void onRemove() {
+    _picture.dispose();
+    super.onRemove();
   }
 }
 

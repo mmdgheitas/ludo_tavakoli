@@ -35,20 +35,23 @@ class AuthController extends StateNotifier<AsyncValue<UserProfile?>> {
 
   Future<void> login({required String identifier, required String password}) async {
     state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() => _repository.login(identifier: identifier, password: password));
-    if (state.value != null) _startHeartbeat();
+    final result = await AsyncValue.guard(() => _repository.login(identifier: identifier, password: password));
+    state = result;
+    if (result is AsyncData<UserProfile?> && result.value != null) _startHeartbeat();
   }
 
   Future<void> register({required String username, required String email, required String password}) async {
     state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() => _repository.register(username: username, email: email, password: password));
-    if (state.value != null) _startHeartbeat();
+    final result = await AsyncValue.guard(() => _repository.register(username: username, email: email, password: password));
+    state = result;
+    if (result is AsyncData<UserProfile?> && result.value != null) _startHeartbeat();
   }
 
   Future<void> enter({String? displayName}) async {
     state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() => _repository.createGuest(displayName: displayName));
-    if (state.value != null) _startHeartbeat();
+    final result = await AsyncValue.guard(() => _repository.createGuest(displayName: displayName));
+    state = result;
+    if (result is AsyncData<UserProfile?> && result.value != null) _startHeartbeat();
   }
 
   Future<void> logout() async {
