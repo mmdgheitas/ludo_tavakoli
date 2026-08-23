@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:ludo_app/core/config/app_config.dart';
 import 'package:ludo_app/core/providers.dart';
 import 'package:ludo_app/core/theme/app_theme.dart';
 import 'package:ludo_app/features/game/data/offline_game_repository.dart';
@@ -37,6 +38,14 @@ class LobbyScreen extends ConsumerWidget {
                   ])),
                   _Balance(icon: Icons.monetization_on_rounded, value: '${user?.coinBalance ?? 0}', color: AppColors.gold),
                 ]),
+                if (AppConfig.useMockData) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                    decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: .15), borderRadius: BorderRadius.circular(12)),
+                    child: const Row(children: [Icon(Icons.science_outlined, color: AppColors.gold, size: 18), SizedBox(width: 8), Expanded(child: Text('حالت آزمایشی فعال است؛ برای بازی آفلاین نیازی به بک‌اند نیست.', style: TextStyle(fontSize: 11, color: AppColors.gold)))]),
+                  ),
+                ],
                 const SizedBox(height: 26),
                 Container(
                   padding: const EdgeInsets.all(22),
@@ -186,6 +195,12 @@ class LobbyScreen extends ConsumerWidget {
   }
 
   void _openOnlineMenu(BuildContext context) {
+    if (AppConfig.useMockData) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('بازی آنلاین در حالت داده آزمایشی غیرفعال است.')),
+      );
+      return;
+    }
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,

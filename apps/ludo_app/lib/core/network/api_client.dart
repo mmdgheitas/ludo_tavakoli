@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:ludo_app/core/config/app_config.dart';
+import 'package:ludo_app/core/network/mock_api_interceptor.dart';
 
 class ApiClient {
   ApiClient(this._storage)
@@ -10,6 +11,10 @@ class ApiClient {
           receiveTimeout: const Duration(seconds: 15),
           headers: {'Content-Type': 'application/json'},
         )) {
+    if (AppConfig.useMockData) {
+      dio.interceptors.add(MockApiInterceptor());
+      return;
+    }
     dio.interceptors.add(QueuedInterceptorsWrapper(
       onRequest: (options, handler) async {
         final refresh = _refreshing;

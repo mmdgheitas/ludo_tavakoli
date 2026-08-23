@@ -60,6 +60,12 @@ flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3001/api/v1 \
   --dart-define=SOCKET_BASE_URL=http://10.0.2.2:3001
 ```
 
+For backend-free offline testing:
+
+```bash
+flutter run --dart-define=USE_MOCK_DATA=true
+```
+
 ## Verification
 
 ```bash

@@ -3,6 +3,10 @@ import 'package:flutter/foundation.dart';
 class AppConfig {
   AppConfig._();
 
+  static const useMockData = bool.fromEnvironment(
+    'USE_MOCK_DATA',
+    defaultValue: false,
+  );
   static const _apiOverride = String.fromEnvironment('API_BASE_URL');
   static const _socketOverride = String.fromEnvironment('SOCKET_BASE_URL');
 
