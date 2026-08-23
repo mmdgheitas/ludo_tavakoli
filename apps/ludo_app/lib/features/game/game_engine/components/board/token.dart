@@ -17,10 +17,17 @@ class TokenComponent extends PositionComponent with TapCallbacks, HasGameReferen
   bool _shouldDrawCircle = false; // Flag to control circle rendering and animation
   double _circleScale = 1.0;
   Timer? _circleAnimationTimer;
+  final List<Completer<void>> _pendingEffects = [];
 
   Future<void> _applyEffect(Effect effect) {
     final completer = Completer<void>();
-    effect.onComplete = completer.complete;
+    _pendingEffects.add(completer);
+    effect.onComplete = () {
+      if (!completer.isCompleted) {
+        completer.complete();
+      }
+      _pendingEffects.remove(completer);
+    };
     add(effect);
     return completer.future;
   }
@@ -196,6 +203,12 @@ class TokenComponent extends PositionComponent with TapCallbacks, HasGameReferen
   void onRemove() {
     _circleAnimationTimer?.stop();
     _circleAnimationTimer = null;
+    for (final completer in _pendingEffects) {
+      if (!completer.isCompleted) {
+        completer.complete();
+      }
+    }
+    _pendingEffects.clear();
     super.onRemove();
   }
 

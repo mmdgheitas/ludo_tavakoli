@@ -16,7 +16,6 @@ class GameInitializer {
   static Future<void> run(Ludo game, List<PlayerTeam> teams) async {
     await TokenManager().clearTokens();
     await GameState().clearPlayers();
-    await AudioManager.dispose();
 
     await AudioManager.initialize();
 
