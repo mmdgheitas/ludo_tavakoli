@@ -105,14 +105,29 @@ class GameState {
   }
 
   void switchToNextPlayer() {
+    if (state == LudoGameState.gameOver) return;
+
     changeState(LudoGameState.needRoll);
     var current = currentPlayer;
     game?.switchOffPointer();
     current.resetExtraTurns();
 
+    if (players.every((p) => p.hasWon)) {
+      state = LudoGameState.gameOver;
+      return;
+    }
+
+    var loopCount = 0;
+
     // Loop to find the next player who hasn't won
     do {
       currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
+      loopCount++;
+
+      if (loopCount > players.length) {
+        state = LudoGameState.gameOver;
+        return;
+      }
     } while (players[currentPlayerIndex].hasWon);
 
     var nextPlayer = players[currentPlayerIndex];
@@ -643,35 +658,42 @@ class GameState {
       final playersWhoWon = players.where((p) => p.hasWon).toList();
       final playersWhoNotWon = players.where((p) => !p.hasWon).toList();
 
-      if (playersWhoWon.length == players.length - 1) {
-        playersWhoNotWon.first.rank = players.length;
-        player.rank = playersWhoWon.length;
-        changeState(LudoGameState.gameOver);
-        for (var t in TokenManager().allTokens) {
-          t.enableToken = false;
+      if (playersWhoWon.length >= players.length - 1) {
+        for (var playerWhoHasNotWon in playersWhoNotWon) {
+          playerWhoHasNotWon.rank = players.length;
         }
-        game?.showPlayerModal();
-      } else {
         player.rank = playersWhoWon.length;
+
+        if (state != LudoGameState.gameOver) {
+          state = LudoGameState.gameOver;
+          for (var t in TokenManager().allTokens) {
+            t.enableToken = false;
+          }
+          game?.showPlayerModal();
+        }
+        return true;
       }
-      return true;
+
+      player.rank = playersWhoWon.length;
     }
 
-    changeState(LudoGameState.needRoll);
-    final lowerController = world.children.whereType<LowerController>().first;
-    lowerController.showPointer(player.playerId);
-    final upperController = world.children.whereType<UpperController>().first;
-    upperController.showPointer(player.playerId);
+    if (state != LudoGameState.gameOver) {
+      changeState(LudoGameState.needRoll);
+      final lowerController = world.children.whereType<LowerController>().first;
+      lowerController.showPointer(player.playerId);
+      final upperController = world.children.whereType<UpperController>().first;
+      upperController.showPointer(player.playerId);
 
-    for (var t in player.tokens) {
-      t.enableToken = false;
+      for (var t in player.tokens) {
+        t.enableToken = false;
+      }
+
+      if (player.hasRolledThreeConsecutiveSixes()) {
+        await player.resetExtraTurns();
+      }
+
+      player.grantAnotherTurn();
     }
-
-    if (player.hasRolledThreeConsecutiveSixes()) {
-      await player.resetExtraTurns();
-    }
-
-    player.grantAnotherTurn();
     return true;
   }
 
