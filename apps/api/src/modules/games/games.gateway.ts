@@ -1,4 +1,4 @@
-import { Logger, UsePipes, ValidationPipe } from '@nestjs/common';
+import { BadRequestException, Logger, UsePipes, ValidationPipe } from '@nestjs/common';
 import { ConnectedSocket, MessageBody, OnGatewayConnection, OnGatewayDisconnect, SubscribeMessage, WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { FattahDto, MoveTokenDto } from './dto/game.dto';
@@ -90,8 +90,21 @@ export class GamesGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return { event: 'game:ack', data: { accepted: true } };
     } catch (error) {
       this.logger.warn(error instanceof Error ? error.message : 'Game command failed');
-      return { event: 'game:error', data: { message: error instanceof Error ? error.message : 'Command rejected' } };
+      return { event: 'game:error', data: { message: this.errorMessage(error) } };
     }
+  }
+
+  private errorMessage(error: unknown): string {
+    if (error instanceof BadRequestException) {
+      const response = error.getResponse() as { message?: unknown };
+      const message = response?.message;
+      if (typeof message === 'string') return message;
+      if (message && typeof message === 'object') {
+        const nested = message as { code?: unknown; message?: unknown };
+        return `${String(nested.code ?? 'REJECTED')}: ${String(nested.message ?? 'Command rejected')}`;
+      }
+    }
+    return error instanceof Error ? error.message : 'Command rejected';
   }
 
   private room(gameId: string): string { return `game:${gameId}`; }
