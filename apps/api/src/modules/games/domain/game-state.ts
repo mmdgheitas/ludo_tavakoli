@@ -2,6 +2,11 @@ import { Team } from '@prisma/client';
 
 export type GamePhase = 'WAITING_PLAYERS' | 'WAITING_ROLL' | 'WAITING_MOVE' | 'FINISHED';
 
+/** Seat order per mode: 2P sits on the diagonal (blue/green) like offline games. */
+export function teamsForPlayerCount(count: number): Team[] {
+  return count === 2 ? [Team.BLUE, Team.GREEN] : [Team.BLUE, Team.RED, Team.GREEN, Team.YELLOW];
+}
+
 export interface PlayerState {
   userId: string;
   team: Team;

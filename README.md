@@ -21,7 +21,7 @@ The Flame board renderer is derived from `harsh-vardhhan/Ludo` and retained unde
 - Original Flame component renderer and animations retained rather than rewritten.
 - Riverpod composition, Dio refresh-token interceptor, encrypted token storage, Hive offline snapshot repository, and Socket.IO matchmaking client.
 - Server-generated dice, turn/movement/capture/winner validation, optimistic game versions, Redis distributed locks, reconnectable snapshots and atomic winner rewards.
-- Coalesced differential Flame synchronization, cached static board rendering and deterministic teardown to prevent animation backlogs, effect accumulation and retained game memory.
+- Coalesced differential Flame synchronization with offline-parity movement animations (per-cell hops, out-of-base launch, capture walk-home, single-move auto-play), cached static board rendering and deterministic teardown to prevent animation backlogs, effect accumulation and retained game memory.
 - Username/email registration, password login and SMTP recovery, plus optional guest identity; JWT access tokens, rotating refresh tokens, live-session heartbeat, device session revocation, roles and bans.
 - Coin ledger, daily/admin/game rewards, inventory, backend-controlled shop, VIP reward multiplier, one-Fattah-per-game enforcement and atomic inventory decrement.
 - Fail-closed Bazaar/Myket receipt verifier boundary, receipt hashing, provider transaction uniqueness and server-only entitlement fulfillment.

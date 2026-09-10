@@ -1,13 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { GameMode, GameStatus, Prisma, Team } from '@prisma/client';
+import { GameMode, GameStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { AuthoritativeGameState, GameRuleError, MoveResult } from './domain/game-state';
+import { AuthoritativeGameState, GameRuleError, MoveResult, teamsForPlayerCount } from './domain/game-state';
 import { LudoEngine } from './domain/ludo-engine';
 import { GameLockService } from './game-lock.service';
 import { GameStateStore } from './game-state.store';
 
-const TEAMS = [Team.BLUE, Team.RED, Team.GREEN, Team.YELLOW];
 
 @Injectable()
 export class GamesService {
@@ -22,7 +21,8 @@ export class GamesService {
     const required = this.playerCount(mode);
     const gameId = randomUUID();
     const roomCode = await this.uniqueRoomCode();
-    const state = this.engine.create(gameId, [{ userId: hostId, team: Team.BLUE }], false, required);
+    const seating = teamsForPlayerCount(required);
+    const state = this.engine.create(gameId, [{ userId: hostId, team: seating[0] }], false, required);
     return this.prisma.game.create({
       data: {
         id: gameId,
@@ -30,7 +30,7 @@ export class GamesService {
         mode,
         status: GameStatus.WAITING,
         state: state as unknown as Prisma.InputJsonValue,
-        participants: { create: { userId: hostId, team: Team.BLUE, disconnectedAt: new Date() } },
+        participants: { create: { userId: hostId, team: seating[0], disconnectedAt: new Date() } },
       },
       select: { id: true, roomCode: true, mode: true, status: true, state: true, createdAt: true },
     });
@@ -51,7 +51,7 @@ export class GamesService {
       if (game.participants.some((participant) => participant.userId === userId)) return game.state as unknown as AuthoritativeGameState;
       const required = this.playerCount(game.mode);
       if (game.participants.length >= required) throw new BadRequestException('Room is full');
-      const team = TEAMS[game.participants.length];
+      const team = teamsForPlayerCount(required)[game.participants.length];
       const players = [...game.participants.map((participant) => ({ userId: participant.userId, team: participant.team })), { userId, team }];
       const previous = game.state as unknown as AuthoritativeGameState;
       const state = this.engine.create(gameId, players, false, required);
@@ -83,7 +83,8 @@ export class GamesService {
     const required = this.playerCount(mode);
     if (userIds.length !== required || new Set(userIds).size !== userIds.length) throw new BadRequestException('Incorrect number of unique players');
     const gameId = randomUUID();
-    const players = userIds.map((userId, index) => ({ userId, team: TEAMS[index] }));
+    const seating = teamsForPlayerCount(required);
+    const players = userIds.map((userId, index) => ({ userId, team: seating[index] }));
     const state = this.engine.create(gameId, players, false, required);
     const disconnectedAt = new Date();
     await this.prisma.game.create({
