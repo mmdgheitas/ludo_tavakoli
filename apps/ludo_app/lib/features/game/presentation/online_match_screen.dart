@@ -9,12 +9,14 @@ import 'package:ludo_app/core/theme/app_theme.dart';
 import 'package:ludo_app/features/chat/data/quick_chat_repository.dart';
 import 'package:ludo_app/features/game/data/online_game_repository.dart';
 import 'package:ludo_app/features/game/data/online_session_adapter.dart';
+import 'package:ludo_app/features/game/domain/fattah.dart';
 import 'package:ludo_app/features/game/domain/game_snapshot.dart';
 import 'package:ludo_app/features/game/domain/ludo_rules.dart';
 import 'package:ludo_app/features/game/game_engine/ludo_game.dart';
 import 'package:ludo_app/features/game/game_engine/managers/game_command_sink.dart';
 import 'package:ludo_app/features/game/game_engine/managers/game_state.dart';
 import 'package:ludo_app/features/game/game_engine/models/player_team.dart';
+import 'package:ludo_app/features/shop/presentation/shop_screen.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
 class OnlineMatchScreen extends ConsumerStatefulWidget {
@@ -70,6 +72,13 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
   String? _socketToken;
   bool _renewingToken = false;
   DateTime? _lastTokenRefreshAt;
+  // Fattah inventory is server-owned. It is read once per match and spent
+  // locally only when the server confirms the strike in a broadcast snapshot.
+  int _fattahBalance = 0;
+  int _fattahMaxPerGame = 1;
+  String? _fattahBanner;
+  Timer? _fattahBannerTimer;
+  FattahStrike? _pendingStrike;
 
   @override
   void initState() {
@@ -95,10 +104,24 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
   Map<String, dynamic>? get _myPlayer =>
       _players.where((player) => player['userId'] == _myUserId).firstOrNull;
 
-  bool get _fattahAvailable {
-    final phaseHasTurn = _phase == 'WAITING_ROLL' || _phase == 'WAITING_MOVE';
-    return phaseHasTurn && _isMyTurn && _myPlayer?['fattahUsed'] != true;
-  }
+  static const _fattahRules = FattahRules();
+
+  bool get _fattahUsedThisGame => _myPlayer?['fattahUsed'] == true;
+
+  /// The launcher is offered whenever this player could legally fire in this
+  /// game, so an empty inventory is visible instead of failing silently.
+  bool get _fattahVisible => _fattahRules.isLauncherVisible(
+        phase: _phase,
+        myTurn: _isMyTurn,
+        usedThisGame: _fattahUsedThisGame,
+      );
+
+  bool get _fattahEnabled => _fattahRules.canFire(
+        phase: _phase,
+        myTurn: _isMyTurn,
+        usedThisGame: _fattahUsedThisGame,
+        balance: _fattahBalance,
+      );
 
   void _requestRoll() {
     if (!_isMyTurn || _phase != 'WAITING_ROLL') return;
@@ -114,15 +137,32 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
     _sendCommand('game:move', {'gameId': widget.gameId, 'tokenIndex': number - 1});
   }
 
-  void _sendCommand(String event, Map<String, dynamic> payload) {
+  /// Sends one intent. Returns false — with a Persian explanation — when the
+  /// command could not leave the device, so an interaction is never swallowed.
+  bool _sendCommand(String event, Map<String, dynamic> payload) {
     final socket = _socket;
-    if (_commandPending || socket == null || !socket.connected) return;
+    if (_commandPending) {
+      _toast('یک فرمان در حال ارسال است؛ چند لحظه صبر کنید.');
+      return false;
+    }
+    if (socket == null || !socket.connected) {
+      _toast('اتصال برقرار نیست؛ دوباره تلاش کنید.');
+      return false;
+    }
     setState(() => _commandPending = true);
     socket.emit(event, payload);
     _commandTimer?.cancel();
     _commandTimer = Timer(const Duration(seconds: 4), () {
       if (mounted) setState(() => _commandPending = false);
     });
+    return true;
+  }
+
+  void _toast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _unlockCommands() {
@@ -130,8 +170,11 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
     if (mounted && _commandPending) setState(() => _commandPending = false);
   }
 
-  void _scheduleSnapshot(GameSnapshot snapshot) {
+  void _scheduleSnapshot(GameSnapshot snapshot, {FattahStrike? strike}) {
     _pendingSnapshot = snapshot;
+    // A superseding snapshot drops the pending rocket: the struck piece is
+    // already home in the newer state, and the banner has been shown anyway.
+    _pendingStrike = strike;
     if (!_syncingSnapshot) unawaited(_drainSnapshots());
   }
 
@@ -140,7 +183,9 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
     try {
       while (mounted && _pendingSnapshot != null && _game != null) {
         final snapshot = _pendingSnapshot!;
+        final strike = _pendingStrike;
         _pendingSnapshot = null;
+        _pendingStrike = null;
         final hold = _holdSnapshotsUntil;
         if (hold != null) {
           final wait = hold.difference(DateTime.now());
@@ -152,7 +197,7 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
           // animation; gaps (initial sync, reconnects) fast-forward so
           // animation backlogs can never accumulate.
           final animate = _appliedVersion != null && snapshot.version == _appliedVersion! + 1;
-          await _adapter.apply(_game!, snapshot, myTurn: _isMyTurn, animate: animate);
+          await _adapter.apply(_game!, snapshot, myTurn: _isMyTurn, animate: animate, strike: strike);
           _appliedVersion = snapshot.version;
           unawaited(_maybeAutoMove(snapshot));
         } catch (_) {
@@ -166,7 +211,8 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
       }
     } finally {
       _syncingSnapshot = false;
-      if (mounted && _pendingSnapshot != null) _scheduleSnapshot(_pendingSnapshot!);
+      final pending = _pendingSnapshot;
+      if (mounted && pending != null) _scheduleSnapshot(pending, strike: _pendingStrike);
     }
   }
 
@@ -229,13 +275,16 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
 
   Future<void> _connect() async {
     _myUserId = ref.read(currentUserProvider).value?.id;
+    int? profileRockets = ref.read(currentUserProvider).value?.fattahBalance;
     try {
       final profile = await ref.read(authRepositoryProvider).me();
       _myUserId = profile?.id ?? _myUserId;
+      profileRockets = profile?.fattahBalance ?? profileRockets;
     } catch (_) {
       if (mounted) setState(() => _connectionLabel = 'ورود دوباره لازم است');
       return;
     }
+    unawaited(_loadFattahBalance(profileRockets));
     final token = await ref.read(secureStorageProvider).read(key: 'access_token');
     if (token == null || !mounted) return;
     _socketToken = token;
@@ -275,6 +324,29 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
       ..on('game:error', _handleSocketError)
       ..on('exception', _handleSocketError)
       ..connect();
+  }
+
+  /// Reads the rocket inventory once per match. The cached profile is only a
+  /// fallback: `GET /fattah/balance` is the documented source, and the server
+  /// stays authoritative when the shot is actually spent.
+  Future<void> _loadFattahBalance(int? fallback) async {
+    var balance = fallback ?? 0;
+    var maxPerGame = 1;
+    try {
+      final response = await ref.read(apiClientProvider).dio.get<Map<String, dynamic>>('/fattah/balance');
+      final data = response.data;
+      if (data != null) {
+        balance = (data['balance'] as num?)?.toInt() ?? balance;
+        maxPerGame = (data['maxUsagePerGame'] as num?)?.toInt() ?? maxPerGame;
+      }
+    } catch (_) {
+      // A failed lookup only affects the badge; firing still fails closed.
+    }
+    if (!mounted) return;
+    setState(() {
+      _fattahBalance = balance;
+      _fattahMaxPerGame = maxPerGame;
+    });
   }
 
   void _handleSocketError(dynamic data) {
@@ -396,9 +468,68 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
     _deadline = DateTime.tryParse(rawState['turnDeadlineAt']?.toString() ?? '');
     _winnerId = winnerId;
     _showReason(outer['reason']?.toString());
+    final strike = _readFattahStrike(outer, players);
     if (_ready && _game != null && _phase != 'WAITING_PLAYERS') {
-      _scheduleSnapshot(snapshot);
+      _scheduleSnapshot(snapshot, strike: strike);
     }
+    if (mounted) setState(() {});
+  }
+
+  /// Decodes the server's `fattah` marker, spends the local rocket when this
+  /// device fired it, and announces the strike to every player. Without the
+  /// marker a rocket hit is indistinguishable from an ordinary capture.
+  FattahStrike? _readFattahStrike(Map<String, dynamic> result, List<Map<String, dynamic>> players) {
+    final raw = result['fattah'];
+    if (raw is! Map) return null;
+    final payload = Map<String, dynamic>.from(raw);
+    final String? actorId = payload['actorId']?.toString();
+    final String? targetUserId = payload['targetUserId']?.toString();
+    final targetIndex = (payload['targetTokenIndex'] as num?)?.toInt();
+    if (actorId == null || targetUserId == null || targetIndex == null) return null;
+    if (targetIndex < 0 || targetIndex > 3) return null;
+    final attacker = players.where((player) => player['userId'] == actorId).firstOrNull;
+    final victim = players.where((player) => player['userId'] == targetUserId).firstOrNull;
+    final attackerTeam = attacker == null ? null : FattahRules.teamOf(attacker['team']);
+    final targetTeam = victim == null ? null : FattahRules.teamOf(victim['team']);
+    if (attackerTeam == null || targetTeam == null) return null;
+
+    final isMine = actorId == _myUserId;
+    if (isMine) {
+      if (_fattahBalance > 0) _fattahBalance -= 1;
+      // Keep the rocket count shown on the profile honest after spending one.
+      unawaited(ref.read(currentUserProvider.notifier).restore());
+    }
+    _showBanner(_fattahBannerText(
+      isMine: isMine,
+      isVictim: targetUserId == _myUserId,
+      targetTeam: targetTeam,
+      targetIndex: targetIndex,
+    ));
+    return FattahStrike(
+      attackerTeam: attackerTeam,
+      targetTeam: targetTeam,
+      targetTokenIndex: targetIndex,
+    );
+  }
+
+  String _fattahBannerText({
+    required bool isMine,
+    required bool isVictim,
+    required Team targetTeam,
+    required int targetIndex,
+  }) {
+    final teamFa = _teamNamesFa[targetTeam] ?? '';
+    if (isVictim) return '🚀 مهره ${targetIndex + 1} شما با موشک فتاح به خانه برگشت';
+    if (isMine) return '🚀 موشک فتاح شلیک شد! مهره ${targetIndex + 1} تیم $teamFa به خانه برگشت';
+    return '🚀 موشک فتاح! مهره ${targetIndex + 1} تیم $teamFa به خانه برگشت';
+  }
+
+  void _showBanner(String message) {
+    _fattahBannerTimer?.cancel();
+    _fattahBanner = message;
+    _fattahBannerTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _fattahBanner = null);
+    });
     if (mounted) setState(() {});
   }
 
@@ -440,21 +571,49 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
     if (accepted) _sendCommand('game:forfeit', {'gameId': widget.gameId});
   }
 
-  Future<void> _showFattahSheet() async {
-    final targets = <MapEntry<Map<String, dynamic>, int>>[];
-    for (final player in _players) {
-      if (player['userId'] == _myUserId || player['forfeited'] == true) continue;
-      final tokens = player['tokens'] as List;
-      for (var index = 0; index < tokens.length; index++) {
-        final progress = (tokens[index] as num).toInt();
-        if (progress >= 0 && progress < LudoRules.finishProgress) {
-          targets.add(MapEntry(player, index));
-        }
-      }
+  Future<void> _onFattahPressed() async {
+    if (!_fattahEnabled) {
+      await _showFattahShopPrompt();
+      return;
     }
+    if (_commandPending) {
+      _toast('یک فرمان در حال ارسال است؛ چند لحظه صبر کنید.');
+      return;
+    }
+    await _showFattahSheet();
+  }
+
+  /// An empty inventory is a shopping problem, not a dead button. The shop is
+  /// pushed over the match, so the socket — and the seat — stay alive.
+  Future<void> _showFattahShopPrompt() async {
+    final goShop = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('موشک فتاح ندارید'),
+        content: const Text('موجودی فتاح شما صفر است. با خرید موشک می‌توانید در نوبت خود یک مهره حریف را به خانه بفرستید. فروشگاه روی مسابقه باز می‌شود و ساعت نوبت شما همچنان در جریان است.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('بستن')),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            icon: const Icon(Icons.storefront_rounded, size: 18),
+            label: const Text('خرید موشک'),
+          ),
+        ],
+      ),
+    ) ?? false;
+    if (!goShop) return;
+    if (!mounted) return;
+    await Navigator.push<void>(context, MaterialPageRoute<void>(builder: (_) => const ShopScreen()));
+    if (!mounted) return;
+    // A purchase may have landed while the shop was open; read the count again.
+    await _loadFattahBalance(_fattahBalance);
+  }
+
+  Future<void> _showFattahSheet() async {
+    final targets = _fattahRules.targets(_players, _myUserId);
     if (!mounted) return;
     if (targets.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('هیچ مهره‌ای از حریفان روی زمین نیست.')));
+      _toast('هیچ مهره‌ای از حریفان روی زمین نیست.');
       return;
     }
     await showModalBottomSheet<void>(
@@ -464,22 +623,28 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Text('موشک فتاح — یک مهره حریف را انتخاب کنید', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900))),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('موشک فتاح — یک مهره حریف را انتخاب کنید', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 4),
+                Text(
+                  'موجودی: $_fattahBalance موشک · حداکثر $_fattahMaxPerGame بار در هر مسابقه',
+                  style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                ),
+              ]),
+            ),
             Flexible(
               child: ListView.shrinkWrap(
                 children: [
                   for (final target in targets)
                     ListTile(
-                      leading: CircleAvatar(backgroundColor: _teamColors[Team.values.byName((target.key['team'] as String).toLowerCase())], radius: 14),
-                      title: Text('تیم ${_teamNamesFa[Team.values.byName((target.key['team'] as String).toLowerCase())]} — مهره ${target.value + 1}', style: const TextStyle(fontWeight: FontWeight.w800)),
-                      subtitle: Text('خانه ${(target.key['tokens'] as List)[target.value]} از ۵۶'),
+                      leading: CircleAvatar(backgroundColor: _teamColors[target.team], radius: 14),
+                      title: Text('تیم ${_teamNamesFa[target.team]} — مهره ${target.tokenIndex + 1}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                      subtitle: Text('خانه ${target.progress} از ۵۶'),
                       onTap: () {
                         Navigator.pop(sheetContext);
-                        _sendCommand('game:fattah', {
-                          'gameId': widget.gameId,
-                          'targetUserId': target.key['userId'],
-                          'targetTokenIndex': target.value,
-                        });
+                        unawaited(_fireFattah(target));
                       },
                     ),
                 ],
@@ -491,6 +656,47 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
     );
   }
 
+  /// Confirms the spend, re-validates against the freshest snapshot and fires.
+  /// Spending a paid consumable must never be a silent or stale action.
+  Future<void> _fireFattah(FattahTarget chosen) async {
+    final target = _fattahRules.validate(_players, _myUserId, chosen.userId, chosen.tokenIndex);
+    if (target == null) {
+      _toast('این مهره دیگر روی زمین نیست.');
+      return;
+    }
+    if (_commandPending) {
+      _toast('یک فرمان در حال ارسال است؛ چند لحظه صبر کنید.');
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('شلیک موشک فتاح؟'),
+        content: Text('مهره ${target.tokenIndex + 1} تیم ${_teamNamesFa[target.team]} به خانه برمی‌گردد. فتاح در هر مسابقه فقط یک بار قابل استفاده است.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('انصراف')),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            icon: const Icon(Icons.rocket_launch_rounded, size: 18),
+            label: const Text('شلیک'),
+          ),
+        ],
+      ),
+    ) ?? false;
+    if (!confirmed || !mounted) return;
+    // Re-check after the dialog: the turn may have timed out while it was open.
+    final fresh = _fattahRules.validate(_players, _myUserId, chosen.userId, chosen.tokenIndex);
+    if (fresh == null || !_fattahEnabled) {
+      _toast('این هدف دیگر در دسترس نیست.');
+      return;
+    }
+    _sendCommand('game:fattah', {
+      'gameId': widget.gameId,
+      'targetUserId': fresh.userId,
+      'targetTokenIndex': fresh.tokenIndex,
+    });
+  }
+
   @override
   void dispose() {
     _clock?.cancel();
@@ -498,7 +704,9 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
     _commandTimer?.cancel();
     _diceTimer?.cancel();
     _sessionRenewal?.cancel();
+    _fattahBannerTimer?.cancel();
     _pendingSnapshot = null;
+    _pendingStrike = null;
     _socket?.dispose();
     final game = _game;
     if (game != null) GameState().detachGame(game);
@@ -529,18 +737,42 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
             Chip(label: Text(_isMyTurn ? 'نوبت شما' : 'نوبت حریف'), avatar: Icon(_isMyTurn ? Icons.touch_app : Icons.hourglass_top, size: 16)),
           if (_phase != 'WAITING_PLAYERS' && !finished) Chip(label: Text('$secondsLeft ثانیه'), avatar: const Icon(Icons.timer_outlined, size: 16)),
         ])),
-        if (_fattahAvailable)
+        if (_fattahVisible)
           Positioned(
             bottom: 18, left: 18,
             child: Tooltip(
-              message: 'موشک فتاح',
+              message: _fattahEnabled ? 'موشک فتاح — $_fattahBalance بار باقی مانده' : 'موشک فتاح ندارید؛ برای خرید بزنید',
               child: Material(
-                color: AppColors.coral,
+                color: _fattahEnabled ? AppColors.coral : AppColors.muted,
                 borderRadius: BorderRadius.circular(30),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(30),
-                  onTap: _showFattahSheet,
-                  child: const Padding(padding: EdgeInsets.all(14), child: Icon(Icons.rocket_launch_rounded, color: Colors.white, size: 26)),
+                  onTap: _onFattahPressed,
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Stack(clipBehavior: Clip.none, children: [
+                      const Icon(Icons.rocket_launch_rounded, color: Colors.white, size: 26),
+                      Positioned(
+                        top: -9, right: -11,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: _fattahEnabled ? AppColors.gold : AppColors.ink,
+                            borderRadius: BorderRadius.circular(11),
+                            border: Border.all(color: Colors.white, width: 1.2),
+                          ),
+                          child: Text(
+                            '$_fattahBalance',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                              color: _fattahEnabled ? AppColors.ink : Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ]),
+                  ),
                 ),
               ),
             ),
@@ -549,6 +781,7 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
         if (_phase == 'WAITING_PLAYERS') Positioned.fill(child: ColoredBox(color: const Color(0xCC151124), child: Center(child: Card(child: Padding(padding: const EdgeInsets.all(28), child: Column(mainAxisSize: MainAxisSize.min, children: [const CircularProgressIndicator(), const SizedBox(height: 20), Text('در انتظار تکمیل اتاق (${_players.length}/${widget.playerCount})', style: const TextStyle(fontWeight: FontWeight.w900)), const SizedBox(height: 8), const Text('بازیکنان در حال اتصال امن به مسابقه هستند', style: TextStyle(color: AppColors.muted))])))))),
         if (disconnected > 0) Positioned(bottom: 18, left: 70, right: 18, child: Material(color: AppColors.coral, borderRadius: BorderRadius.circular(14), child: Padding(padding: const EdgeInsets.all(12), child: Text('$disconnected بازیکن قطع شده؛ ۶۰ ثانیه برای بازگشت فرصت دارد.', textAlign: TextAlign.center)))),
         if (_lastDice != null) Positioned(top: 72, left: 30, right: 30, child: Center(child: Material(color: AppColors.gold, borderRadius: BorderRadius.circular(20), child: Padding(padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10), child: Text('تاس: $_lastDice', style: const TextStyle(color: AppColors.ink, fontSize: 18, fontWeight: FontWeight.w900)))))),
+        if (_fattahBanner != null) Positioned(top: 172, left: 24, right: 24, child: Center(child: Material(color: AppColors.coral, borderRadius: BorderRadius.circular(20), child: Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), child: Text(_fattahBanner!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w900)))))),
         if (_chatText != null) Positioned(top: 120, left: 30, right: 30, child: Center(child: Material(color: AppColors.ink, borderRadius: BorderRadius.circular(20), child: Padding(padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12), child: Text(_chatText!, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)))))),
         if (_localPlayerForfeited && !finished)
           Positioned.fill(child: ColoredBox(color: const Color(0xAA151124), child: Center(child: Card(child: Padding(padding: const EdgeInsets.all(28), child: Column(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.flag_rounded, size: 50, color: AppColors.coral), const SizedBox(height: 12), const Text('از مسابقه خارج شدید', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)), const SizedBox(height: 18), FilledButton(onPressed: _exitMatch, child: const Text('بازگشت به خانه'))])))))),

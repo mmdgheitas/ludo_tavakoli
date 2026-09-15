@@ -5,6 +5,7 @@ import 'package:ludo_app/features/game/game_engine/managers/game_state.dart';
 import 'package:ludo_app/features/game/game_engine/managers/token_manager.dart';
 import 'package:ludo_app/features/game/game_engine/models/ludo_game_state.dart';
 import 'package:ludo_app/features/game/game_engine/models/player.dart';
+import 'package:ludo_app/features/game/game_engine/models/player_team.dart';
 import 'package:ludo_app/features/game/game_engine/models/token.dart' as engine;
 
 /// How a token transitioned between the previously shown state and the
@@ -49,7 +50,9 @@ class _TokenPlan {
 /// Applies authoritative online snapshots to the Flame board with the same
 /// movement animations the offline engine plays: per-cell hops with sound and
 /// size pulse for forward moves, a launch out of the base, and a backward walk
-/// home for captured tokens. Transitions that are not a normal single move
+/// home for captured tokens. An accepted Fattah rocket ([FattahStrike]) flies to
+/// the struck piece first, so the walk home is explained rather than looking
+/// like an ordinary capture. Transitions that are not a normal single move
 /// (initial sync, reconnect gaps, timeouts, forfeits) fast-forward instead, so
 /// animation backlogs can never accumulate between authoritative updates.
 class OnlineSessionAdapter {
@@ -64,6 +67,7 @@ class OnlineSessionAdapter {
     GameSnapshot snapshot, {
     required bool myTurn,
     required bool animate,
+    FattahStrike? strike,
   }) async {
     final target = GameState();
     if (target.players.isEmpty || snapshot.teams.isEmpty) return;
@@ -185,7 +189,20 @@ class OnlineSessionAdapter {
     }
     if (detailed) {
       animations.add(() async {
+        // A Fattah strike is announced before the piece walks home, so every
+        // player sees the rocket that caused it instead of an unexplained
+        // capture. Fast-forwarded updates skip it on purpose: catching up must
+        // never queue cosmetic effects.
+        Future<void>? rocket;
+        final hit = strike;
+        if (hit != null) {
+          rocket = game.launchFattahRocket(
+            attackerTeam: _engineTeam(hit.attackerTeam),
+            targetTokenId: hit.targetTokenId,
+          );
+        }
         await Future.wait(moveFutures);
+        if (rocket != null) await rocket;
         await Future.wait([for (final starter in captureStarters) starter()]);
       }());
     } else {
@@ -262,4 +279,7 @@ class OnlineSessionAdapter {
     MatchPhase.finished => LudoGameState.gameOver,
     MatchPhase.waitingForRoll => LudoGameState.needRoll,
   };
+
+  /// Both enums spell the four corners in lower case, so the mapping is exact.
+  PlayerTeam _engineTeam(Team team) => PlayerTeam.values.byName(team.name);
 }

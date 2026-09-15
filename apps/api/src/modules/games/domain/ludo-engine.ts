@@ -105,7 +105,11 @@ export class LudoEngine {
     if (progress < 0 || progress >= FINISH) throw new GameRuleError('INVALID_TARGET', 'Target token is not exposed');
     target.tokens[targetTokenIndex] = -1;
     actor.fattahUsed = true;
-    return { state: this.touch(state), capturedToken: { userId: target.userId, tokenIndex: targetTokenIndex } };
+    return {
+      state: this.touch(state),
+      capturedToken: { userId: target.userId, tokenIndex: targetTokenIndex },
+      fattah: { actorId: userId, targetUserId: target.userId, targetTokenIndex },
+    };
   }
 
   cancelWaiting(source: AuthoritativeGameState): MoveResult {

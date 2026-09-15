@@ -2,6 +2,24 @@ enum MatchPhase { waitingForRoll, waitingForMove, finished }
 
 enum Team { blue, red, green, yellow }
 
+/// One accepted rocket attack, decoded from the `fattah` marker the server puts
+/// on the broadcast result. `capturedToken` alone cannot tell a strike from a
+/// normal capture, so this is what lets every client attribute and animate it.
+class FattahStrike {
+  const FattahStrike({
+    required this.attackerTeam,
+    required this.targetTeam,
+    required this.targetTokenIndex,
+  });
+
+  final Team attackerTeam;
+  final Team targetTeam;
+  final int targetTokenIndex;
+
+  /// Flame token id of the struck piece (`BT1`, `RT3`, …).
+  String get targetTokenId => '${targetTeam.name[0].toUpperCase()}T${targetTokenIndex + 1}';
+}
+
 class TokenSnapshot {
   const TokenSnapshot({required this.id, required this.team, required this.progress});
   final String id;

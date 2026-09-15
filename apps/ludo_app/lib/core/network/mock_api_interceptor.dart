@@ -96,6 +96,9 @@ class MockApiInterceptor extends Interceptor {
     if (path.startsWith('/auth/sessions/') && method == 'DELETE') return _ok(handler, options, {'success': true});
 
     if (path == '/games/active/me') return _ok(handler, options, const <dynamic>[]);
+    if (path == '/fattah/balance' && method == 'GET') {
+      return _ok(handler, options, {'balance': _user['fattahBalance'], 'maxUsagePerGame': 1});
+    }
     if (path == '/chat/messages') {
       return _ok(handler, options, const [
         {'id': '40000000-0000-4000-8000-000000000001', 'textFa': 'آفرین!', 'emoji': '👏'},

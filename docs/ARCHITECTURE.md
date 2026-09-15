@@ -63,5 +63,5 @@ Recommended initial production topology:
 - Global cells use team offsets and safe-cell capture protection.
 - Only current player may roll/move/use Fattah.
 - Three consecutive sixes forfeit the turn.
-- Fattah is limited by both snapshot flag and unique `(gameId,userId)` database constraint.
+- Fattah is limited by both snapshot flag and unique `(gameId,userId)` database constraint; the accepted result carries a `fattah` marker (`actorId`, `targetUserId`, `targetTokenIndex`) so every client attributes and animates the strike instead of rendering it as an ordinary capture.
 - Winner reward is 100 coins, doubled only when backend VIP expiration is in the future.

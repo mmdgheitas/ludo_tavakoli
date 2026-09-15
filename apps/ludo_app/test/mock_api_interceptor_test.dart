@@ -29,4 +29,22 @@ void main() {
       throwsA(isA<DioException>().having((error) => error.response?.statusCode, 'status', 404)),
     );
   });
+
+  test('fattah inventory is readable and grows with a rocket purchase', () async {
+    final before = await dio.get<Map<String, dynamic>>('/fattah/balance');
+    expect(before.statusCode, 200);
+    expect(before.data?['maxUsagePerGame'], 1);
+    final initial = before.data?['balance'] as int;
+
+    await dio.post<Map<String, dynamic>>('/shop/purchase', data: {
+      // `fattah.single` from the mock catalogue.
+      'itemId': '20000000-0000-4000-8000-000000000003',
+      'idempotencyKey': 'mock-fattah-purchase',
+    });
+
+    final after = await dio.get<Map<String, dynamic>>('/fattah/balance');
+    expect(after.data?['balance'], initial + 1);
+    final profile = await dio.get<Map<String, dynamic>>('/users/me');
+    expect(profile.data?['fattahBalance'], initial + 1);
+  });
 }

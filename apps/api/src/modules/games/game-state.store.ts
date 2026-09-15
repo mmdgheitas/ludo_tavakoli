@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { GameStatus, Prisma, TransactionStatus, TransactionType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
@@ -60,7 +60,18 @@ export class GameStateStore {
         data: { fattahBalance: { decrement: 1 } },
       });
       if (balance.count !== 1) throw new ConflictException('Fattah inventory is empty');
-      await tx.fattahUsage.create({ data: { gameId: state.gameId, userId, targetTokenId } });
+      try {
+        await tx.fattahUsage.create({ data: { gameId: state.gameId, userId, targetTokenId } });
+      } catch (error) {
+        // A stale Redis snapshot can still report `fattahUsed: false` after this
+        // game already consumed the rocket. The unique (gameId,userId) proof is
+        // authoritative, so surface the same friendly rule error instead of a
+        // raw constraint failure.
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+          throw new BadRequestException({ code: 'FATTAH_ALREADY_USED', message: 'Fattah is limited to once per game' });
+        }
+        throw error;
+      }
     });
     await this.cache(state);
   }

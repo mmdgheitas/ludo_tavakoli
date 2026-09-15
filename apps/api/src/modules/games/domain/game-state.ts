@@ -38,6 +38,12 @@ export interface MoveResult {
   state: AuthoritativeGameState;
   dice?: number;
   capturedToken?: { userId: string; tokenIndex: number };
+  /**
+   * Present only on an accepted rocket attack. `capturedToken` alone cannot
+   * distinguish a Fattah strike from a normal capture, so every client needs
+   * this marker to attribute and animate the hit.
+   */
+  fattah?: { actorId: string; targetUserId: string; targetTokenIndex: number };
   winnerId?: string;
   reason?: 'TURN_TIMEOUT' | 'FORFEIT' | 'DISCONNECTED';
 }

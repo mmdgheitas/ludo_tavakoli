@@ -30,3 +30,24 @@ export class FattahDto {
   @Max(3)
   targetTokenIndex!: number;
 }
+
+/**
+ * Socket payloads must be classes: a TypeScript interface erases to `Object`,
+ * which the gateway `ValidationPipe` skips, so decorators on `FattahDto` would
+ * never run for `game:fattah`. These wrappers make the real-time path validate
+ * exactly like the REST path.
+ */
+export class GameCommandDto {
+  @IsUUID()
+  gameId!: string;
+}
+
+export class MoveSocketDto extends MoveTokenDto {
+  @IsUUID()
+  gameId!: string;
+}
+
+export class FattahSocketDto extends FattahDto {
+  @IsUUID()
+  gameId!: string;
+}

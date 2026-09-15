@@ -1,12 +1,9 @@
 import { BadRequestException, Logger, UsePipes, ValidationPipe } from '@nestjs/common';
 import { ConnectedSocket, MessageBody, OnGatewayConnection, OnGatewayDisconnect, SubscribeMessage, WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { FattahDto, MoveTokenDto } from './dto/game.dto';
+import { FattahSocketDto, GameCommandDto, MoveSocketDto } from './dto/game.dto';
 import { GamesService } from './games.service';
 
-interface GameMessage { gameId: string }
-interface MoveMessage extends GameMessage, MoveTokenDto {}
-interface FattahMessage extends GameMessage, FattahDto {}
 interface SocketData { userId: string; subscribedGames: string[] }
 type GameSocket = Socket<Record<string, never>, Record<string, never>, Record<string, never>, SocketData>;
 
@@ -39,7 +36,7 @@ export class GamesGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('game:subscribe')
-  async subscribe(@ConnectedSocket() client: GameSocket, @MessageBody() message: GameMessage) {
+  async subscribe(@ConnectedSocket() client: GameSocket, @MessageBody() message: GameCommandDto) {
     try {
       if (!message?.gameId) throw new Error('Game id is required');
       let state = await this.games.getForUser(message.gameId, client.data.userId);
@@ -60,22 +57,22 @@ export class GamesGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('game:roll')
-  roll(@ConnectedSocket() client: GameSocket, @MessageBody() message: GameMessage) {
+  roll(@ConnectedSocket() client: GameSocket, @MessageBody() message: GameCommandDto) {
     return this.execute(message.gameId, () => this.games.roll(message.gameId, client.data.userId));
   }
 
   @SubscribeMessage('game:move')
-  move(@ConnectedSocket() client: GameSocket, @MessageBody() message: MoveMessage) {
+  move(@ConnectedSocket() client: GameSocket, @MessageBody() message: MoveSocketDto) {
     return this.execute(message.gameId, () => this.games.move(message.gameId, client.data.userId, message.tokenIndex));
   }
 
   @SubscribeMessage('game:fattah')
-  fattah(@ConnectedSocket() client: GameSocket, @MessageBody() message: FattahMessage) {
+  fattah(@ConnectedSocket() client: GameSocket, @MessageBody() message: FattahSocketDto) {
     return this.execute(message.gameId, () => this.games.useFattah(message.gameId, client.data.userId, message.targetUserId, message.targetTokenIndex));
   }
 
   @SubscribeMessage('game:forfeit')
-  forfeit(@ConnectedSocket() client: GameSocket, @MessageBody() message: GameMessage) {
+  forfeit(@ConnectedSocket() client: GameSocket, @MessageBody() message: GameCommandDto) {
     return this.execute(message.gameId, () => this.games.forfeit(message.gameId, client.data.userId));
   }
 

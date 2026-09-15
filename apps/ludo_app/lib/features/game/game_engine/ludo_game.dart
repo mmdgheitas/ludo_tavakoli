@@ -8,8 +8,10 @@ import 'package:ludo_app/features/game/game_engine/managers/game_command_sink.da
 import 'package:ludo_app/features/game/game_engine/components/controls/upper_controller.dart';
 import 'package:ludo_app/features/game/game_engine/components/controls/lower_controller.dart';
 import 'package:ludo_app/features/game/game_engine/components/board/ludo_board.dart';
+import 'package:ludo_app/features/game/game_engine/components/board/spot.dart';
 import 'package:ludo_app/features/game/game_engine/components/controls/ludo_dice.dart';
 import 'package:ludo_app/features/game/game_engine/components/overlays/rank_modal_component.dart';
+import 'package:ludo_app/features/game/game_engine/components/overlays/rocket_component.dart';
 import 'package:ludo_app/features/game/game_engine/models/player_team.dart';
 import 'package:ludo_app/features/game/game_engine/managers/ludo_layout_config.dart';
 import 'package:ludo_app/features/game/game_engine/managers/game_initializer.dart';
@@ -175,6 +177,67 @@ class Ludo extends FlameGame
     if (value < 1 || value > 6) return;
     final dice = _findDice(_upperController) ?? _findDice(_lowerController);
     dice?.showServerRoll(value);
+  }
+
+  /// Cosmetic Fattah strike: a rocket flies from the attacker's home area to the
+  /// struck token and detonates. Resolves when the effect ends, or immediately
+  /// when the board or token cannot be resolved — the authoritative snapshot has
+  /// already sent the piece home, so a skipped effect is never fatal.
+  Future<void> launchFattahRocket({
+    required PlayerTeam attackerTeam,
+    required String targetTokenId,
+  }) async {
+    final board = GameState().ludoBoard;
+    if (board is! PositionComponent) return;
+    final target = TokenManager()
+        .allTokens
+        .where((token) => token.tokenId == targetTokenId)
+        .firstOrNull;
+    if (target == null) return;
+
+    final component = GameState().getComponentForToken(target);
+    // No mounted component means no trustworthy board coordinates, so the
+    // effect is skipped rather than drawn somewhere wrong.
+    if (component == null) return;
+    // Visual position, not logical: the snapshot already parked the token in
+    // its base, but the walk-home animation has not started yet.
+    final impact = Vector2(
+      component.position.x + component.size.x / 2,
+      component.position.y + component.size.y / 2,
+    );
+    final impactScale = component.size.x;
+
+    final origin = _homeAreaCentre(attackerTeam) ?? Vector2(size.x / 2, size.y / 2);
+    final rocket = RocketComponent(
+      from: origin,
+      to: impact,
+      bodyColor: _teamConfigs[attackerTeam]?.staticColor ?? GameState().red,
+      rocketSize: impactScale.clamp(size.x * 0.055, size.x * 0.12).toDouble(),
+    );
+    board.add(rocket);
+    await rocket.finished.timeout(const Duration(seconds: 3), onTimeout: () {});
+  }
+
+  /// Centre of a team's base plate in board coordinates — the rocket launch pad.
+  Vector2? _homeAreaCentre(PlayerTeam team) {
+    final baseSpotIds = switch (team) {
+      PlayerTeam.blue => TokenManager().blueTokensBase.values,
+      PlayerTeam.red => TokenManager().redTokensBase.values,
+      PlayerTeam.green => TokenManager().greenTokensBase.values,
+      PlayerTeam.yellow => TokenManager().yellowTokensBase.values,
+    };
+    double totalX = 0;
+    double totalY = 0;
+    var count = 0;
+    for (final spotId in baseSpotIds) {
+      final Spot? spot = TileManager().getSpot(spotId);
+      if (spot == null) continue;
+      totalX += spot.position.x;
+      totalY += spot.position.y;
+      count += 1;
+    }
+    if (count == 0) return null;
+    return Vector2(totalX / count, totalY / count);
   }
 
   LudoDice? _findDice(Component root) {

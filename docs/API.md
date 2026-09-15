@@ -41,12 +41,25 @@ Connect over WebSocket transport and provide `{ auth: { token: accessToken } }`.
 ## Server events
 
 - `matchmaking:queued`, `matchmaking:matched`, `matchmaking:error`
-- `game:state`: complete authoritative snapshot/result; clients discard lower versions.
+- `game:state`: complete authoritative snapshot/result; clients discard lower versions. An accepted command may add `dice`, `capturedToken`, `winnerId`, `reason` and — for a rocket attack — `fattah: { actorId, targetUserId, targetTokenIndex }`. The `fattah` marker is the only way to tell a strike from an ordinary capture, so clients use it to attribute and animate the hit.
 - `game:ack`, `game:error`
 - `chat:message`, `chat:error`
 - `presence:ack`
 
 No event accepts dice values, balances, prices, scores or winner declarations.
+
+## Fattah contract
+
+`GET /fattah/balance` returns `{ balance, maxUsagePerGame }`; the mobile client reads it once per
+match to gate the in-match launcher and shows a disabled state with a shop shortcut at zero instead
+of letting the server reject the shot.
+
+`game:fattah` (or `POST /games/:id/fattah`) is accepted only for the player on turn, only once per
+game per player, and only against an enemy token standing on the board (`0..55`); safe cells give no
+protection against a rocket. Acceptance decrements `fattahBalance` and records `FattahUsage` in the
+same transaction as the snapshot write, then broadcasts the `fattah` marker above. Failures answer
+`game:error` with `FATTAH_ALREADY_USED`, `INVALID_TARGET`, `NOT_YOUR_TURN` or
+`Fattah inventory is empty`.
 
 ## Payment contract
 
