@@ -7,6 +7,23 @@ export function teamsForPlayerCount(count: number): Team[] {
   return count === 2 ? [Team.BLUE, Team.GREEN] : [Team.BLUE, Team.RED, Team.GREEN, Team.YELLOW];
 }
 
+/** Width of `FattahUsage.targetTokenId`. A longer value fails as Prisma P2000. */
+export const FATTAH_TARGET_TOKEN_ID_MAX = 32;
+
+/**
+ * Board identifier of a token, e.g. `RT3` for red's third token. The Flutter
+ * client derives the identical string (`FattahStrike.targetTokenId`), so a
+ * stored strike names exactly the token every player watched get hit.
+ *
+ * Never substitute `${targetUserId}:${targetTokenIndex}` here: that is 38
+ * characters and overflows the audit column. The struck player stays
+ * recoverable without it, because a team is unique per game
+ * (`GameParticipant @@unique([gameId, team])`).
+ */
+export function fattahTokenId(team: Team, tokenIndex: number): string {
+  return `${team.charAt(0).toUpperCase()}T${tokenIndex + 1}`;
+}
+
 export interface PlayerState {
   userId: string;
   team: Team;

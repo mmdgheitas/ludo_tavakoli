@@ -61,6 +61,16 @@ same transaction as the snapshot write, then broadcasts the `fattah` marker abov
 `game:error` with `FATTAH_ALREADY_USED`, `INVALID_TARGET`, `NOT_YOUR_TURN` or
 `Fattah inventory is empty`.
 
+The usage row stores the board token id (`RT3`) - the same string the client animates - because
+`FattahUsage.targetTokenId` is `VARCHAR(32)` and a `${targetUserId}:${index}` pair is 38 characters.
+An oversized value is rejected by PostgreSQL as P2000, which aborts the transaction that also
+deducts the rocket, so the strike silently never happens. The struck player stays recoverable: the
+team letter is unique per game through `GameParticipant (gameId, team)`.
+
+Any other failure - a database constraint, a driver timeout - answers `INTERNAL_ERROR: <context>`
+and is logged with its stack. Raw driver text is never sent to a client: the mobile app cannot
+translate it and it discloses schema details.
+
 ## Payment contract
 
 `POST /payments/verify` accepts provider, SKU, opaque purchase token and provider transaction ID. The API hashes tokens, looks up server-controlled catalog price/value, verifies against an HTTPS provider adapter, compares transaction IDs, enforces global uniqueness and fulfills in one database transaction. Missing provider configuration fails closed with 503. Never grant an entitlement in response to an on-device billing callback alone.

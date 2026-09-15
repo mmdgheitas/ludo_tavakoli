@@ -369,6 +369,7 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
     'Fattah inventory is empty': 'موجودی فتاح شما تمام شده است',
     'GAME_FINISHED': 'این مسابقه تمام شده است',
     'GAME_NOT_READY': 'مسابقه هنوز شروع نشده است',
+    'INTERNAL_ERROR': 'خطای داخلی سرور؛ لطفاً دوباره تلاش کنید',
   };
 
   String _errorText(String? raw) {

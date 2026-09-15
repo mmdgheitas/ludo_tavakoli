@@ -9,7 +9,7 @@ The canonical schema is `apps/api/prisma/schema.prisma`; the initial PostgreSQL 
 - **Item / Inventory**: backend-controlled catalog and per-user quantity/equip state.
 - **WalletTransaction**: append-only audit ledger with globally unique idempotency key. `User.coinBalance` is the fast materialized balance.
 - **Payment / VipPurchase**: hashed receipt identity, verified provider transaction and entitlement history.
-- **FattahUsage**: unique game/user usage proof in addition to snapshot state.
+- **FattahUsage**: unique game/user usage proof in addition to snapshot state. `targetTokenId` holds the board token id (`RT3`), never a user UUID: the column is `VARCHAR(32)`, a UUID pair is 38 characters, and the resulting P2000 rolls back the transaction that deducts the rocket.
 - **QuickChat**: the only chat content accepted by the real-time server.
 - **SupportTicket**: player support requests, status and staff response history.
 - **AdminAudit / AppSetting**: privileged action trail and runtime commercial configuration.

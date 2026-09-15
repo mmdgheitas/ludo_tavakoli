@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { GameStatus, Prisma, TransactionStatus, TransactionType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
-import { AuthoritativeGameState } from './domain/game-state';
+import { AuthoritativeGameState, FATTAH_TARGET_TOKEN_ID_MAX } from './domain/game-state';
 
 @Injectable()
 export class GameStateStore {
@@ -49,6 +49,15 @@ export class GameStateStore {
     targetTokenId: string,
   ): Promise<void> {
     if (state.version !== previousVersion + 1) throw new ConflictException('Invalid state version');
+    // Check the width before opening the transaction. An oversized id otherwise
+    // fails as Prisma P2000 ("value too long for the column's type") with no
+    // column named, after the snapshot write and the balance decrement have
+    // already run and are about to roll back with it.
+    if (targetTokenId.length === 0 || targetTokenId.length > FATTAH_TARGET_TOKEN_ID_MAX) {
+      throw new Error(
+        `Fattah targetTokenId must be 1..${FATTAH_TARGET_TOKEN_ID_MAX} characters to fit FattahUsage.targetTokenId, got ${targetTokenId.length}`,
+      );
+    }
     await this.prisma.$transaction(async (tx) => {
       const game = await tx.game.updateMany({
         where: { id: state.gameId, version: previousVersion, status: GameStatus.ACTIVE },

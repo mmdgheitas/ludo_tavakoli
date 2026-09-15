@@ -1,4 +1,4 @@
-import { BadRequestException, Logger, UsePipes, ValidationPipe } from '@nestjs/common';
+import { BadRequestException, HttpException, Logger, UsePipes, ValidationPipe } from '@nestjs/common';
 import { ConnectedSocket, MessageBody, OnGatewayConnection, OnGatewayDisconnect, SubscribeMessage, WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { FattahSocketDto, GameCommandDto, MoveSocketDto } from './dto/game.dto';
@@ -49,10 +49,7 @@ export class GamesGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
       return { event: 'game:state', data: { state } };
     } catch (error) {
-      return {
-        event: 'game:error',
-        data: { message: error instanceof Error ? error.message : 'Could not subscribe to game' },
-      };
+      return this.reject(error, 'Could not subscribe to the game');
     }
   }
 
@@ -86,23 +83,51 @@ export class GamesGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.broadcast(gameId, result);
       return { event: 'game:ack', data: { accepted: true } };
     } catch (error) {
-      this.logger.warn(error instanceof Error ? error.message : 'Game command failed');
-      return { event: 'game:error', data: { message: this.errorMessage(error) } };
+      return this.reject(error);
     }
   }
 
-  private errorMessage(error: unknown): string {
-    if (error instanceof BadRequestException) {
-      const response = error.getResponse() as { message?: unknown };
-      const message = response?.message;
-      if (typeof message === 'string') return message;
-      if (message && typeof message === 'object') {
-        const nested = message as { code?: unknown; message?: unknown };
-        return `${String(nested.code ?? 'REJECTED')}: ${String(nested.message ?? 'Command rejected')}`;
-      }
-    }
-    return error instanceof Error ? error.message : 'Command rejected';
+  /**
+   * Logs the real cause and answers with text a player is allowed to see.
+   * Rule rejections are expected and stay at `warn`; anything else is an
+   * internal failure and is logged with its stack.
+   */
+  private reject(error: unknown, fallback = 'Command failed; please retry') {
+    if (error instanceof HttpException) this.logger.warn(error.message);
+    else this.logger.error(error instanceof Error ? error.stack ?? error.message : fallback);
+    return { event: 'game:error', data: { message: describeGameCommandError(error, fallback) } };
   }
 
   private room(gameId: string): string { return `game:${gameId}`; }
+}
+
+/** Code the client translates when a command fails for a reason it cannot act on. */
+export const INTERNAL_COMMAND_ERROR = 'INTERNAL_ERROR';
+
+/**
+ * Text a player may see when a real-time command fails.
+ *
+ * `HttpException` messages in this module are written for players (rule
+ * rejections, an empty rocket inventory, an optimistic-lock retry), so they pass
+ * through. Everything else is an internal failure - a database constraint, a
+ * driver timeout - and must stay in the server log: echoing it leaks schema and
+ * driver details, and no client can translate it.
+ */
+export function describeGameCommandError(error: unknown, fallback = 'Command failed; please retry'): string {
+  if (error instanceof BadRequestException) {
+    const response: unknown = error.getResponse();
+    if (typeof response === 'string') return response;
+    if (response && typeof response === 'object') {
+      const nested = response as { code?: unknown; message?: unknown };
+      const code = typeof nested.code === 'string' ? nested.code : undefined;
+      const text = typeof nested.message === 'string' ? nested.message : undefined;
+      // Rule rejections carry a code the client translates; a bare message is
+      // already written for the player. Unknown shapes fall through rather than
+      // stringifying an object into `[object Object]`.
+      if (code) return text ? `${code}: ${text}` : `${code}: Command rejected`;
+      if (text) return text;
+    }
+  }
+  if (error instanceof HttpException) return error.message;
+  return `${INTERNAL_COMMAND_ERROR}: ${fallback}`;
 }

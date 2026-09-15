@@ -1,5 +1,5 @@
 import { Team } from '@prisma/client';
-import { GameRuleError } from './game-state';
+import { FATTAH_TARGET_TOKEN_ID_MAX, GameRuleError, fattahTokenId } from './game-state';
 import { LudoEngine } from './ludo-engine';
 
 describe('LudoEngine', () => {
@@ -124,6 +124,30 @@ describe('LudoEngine', () => {
       expect(result.state.turnIndex).toBe(0);
       expect(result.state.phase).toBe('WAITING_ROLL');
       expect(result.state.players[0].tokens).toEqual([-1, -1, -1, -1]);
+    });
+
+    it('names the struck token with the board id the audit column can hold', () => {
+      const { engine, state } = withExposedTarget();
+      const result = engine.useFattah(state, 'u1', 'u2', 0);
+      const target = result.state.players.find((player) => player.userId === 'u2');
+      // Same string the Flutter client derives for the rocket animation.
+      expect(target?.team).toBe(Team.RED);
+      expect(fattahTokenId(Team.RED, 0)).toBe('RT1');
+      expect(fattahTokenId(Team.RED, 2)).toBe('RT3');
+      expect(fattahTokenId(Team.BLUE, 0)).toBe('BT1');
+      expect(fattahTokenId(Team.GREEN, 3)).toBe('GT4');
+      expect(fattahTokenId(Team.YELLOW, 1)).toBe('YT2');
+      // Every possible value must fit FattahUsage.targetTokenId VARCHAR(32);
+      // a `${targetUserId}:${index}` pair is 38 characters and is rejected by
+      // PostgreSQL as P2000, which used to roll the whole strike back.
+      for (const team of Object.values(Team)) {
+        for (let tokenIndex = 0; tokenIndex <= 3; tokenIndex += 1) {
+          const id = fattahTokenId(team, tokenIndex);
+          expect(id.length).toBeGreaterThan(0);
+          expect(id.length).toBeLessThanOrEqual(FATTAH_TARGET_TOKEN_ID_MAX);
+        }
+      }
+      expect(`${'0'.repeat(36)}:0`.length).toBeGreaterThan(FATTAH_TARGET_TOKEN_ID_MAX);
     });
 
     it('keeps a pending roll so the attacker can still move after the strike', () => {

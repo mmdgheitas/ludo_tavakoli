@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { GameMode, GameStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { AuthoritativeGameState, GameRuleError, MoveResult, teamsForPlayerCount } from './domain/game-state';
+import { AuthoritativeGameState, GameRuleError, MoveResult, fattahTokenId, teamsForPlayerCount } from './domain/game-state';
 import { LudoEngine } from './domain/ludo-engine';
 import { GameLockService } from './game-lock.service';
 import { GameStateStore } from './game-state.store';
@@ -225,7 +225,12 @@ export class GamesService {
       const source = await this.store.get(gameId);
       try {
         const result = this.engine.useFattah(source, userId, targetUserId, targetTokenIndex);
-        await this.store.persistFattah(source.version, result.state, userId, `${targetUserId}:${targetTokenIndex}`);
+        // The engine has already validated the target, so this lookup only
+        // resolves which colour it belongs to. `GameRuleError` keeps the
+        // unreachable case on the same rejection path as every other rule.
+        const target = result.state.players.find((player) => player.userId === targetUserId);
+        if (!target) throw new GameRuleError('INVALID_TARGET', 'Target player is invalid');
+        await this.store.persistFattah(source.version, result.state, userId, fattahTokenId(target.team, targetTokenIndex));
         return result;
       } catch (error) { this.rethrowRule(error); }
     });
