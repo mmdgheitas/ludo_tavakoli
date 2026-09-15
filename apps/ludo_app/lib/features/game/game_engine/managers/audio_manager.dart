@@ -5,6 +5,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 class AudioManager {
   static AudioPool? _diceSoundPool;
   static AudioPool? _moveSoundPool;
+  static AudioPool? _rocketSoundPool;
   static bool _initialized = false;
 
   static bool get _enabled =>
@@ -21,6 +22,10 @@ class AudioManager {
       _moveSoundPool ??= await AudioPool.createFromAsset(
         path: 'audio/move.mp3',
         maxPlayers: 4,
+      );
+      _rocketSoundPool ??= await AudioPool.createFromAsset(
+        path: 'audio/rocket.mp3',
+        maxPlayers: 2,
       );
       _initialized = true;
     } catch (_) {
@@ -40,11 +45,21 @@ class AudioManager {
     unawaited(pool.start());
   }
 
+  /// Fattah rocket: a launch whoosh that swells for 0.55 s and then detonates,
+  /// so one sample covers the whole flight of the rocket overlay.
+  static Future<void> playRocketSound({double volume = 1.0}) async {
+    final pool = _rocketSoundPool;
+    if (!_enabled || pool == null) return;
+    unawaited(pool.start(volume: volume));
+  }
+
   static Future<void> dispose() async {
     await _diceSoundPool?.dispose();
     await _moveSoundPool?.dispose();
+    await _rocketSoundPool?.dispose();
     _diceSoundPool = null;
     _moveSoundPool = null;
+    _rocketSoundPool = null;
     _initialized = false;
   }
 }

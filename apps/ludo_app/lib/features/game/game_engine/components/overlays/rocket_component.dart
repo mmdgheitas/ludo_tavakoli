@@ -10,10 +10,11 @@ import 'package:ludo_app/features/game/game_engine/managers/audio_manager.dart';
 ///
 /// The authoritative snapshot has already sent the piece home, so this
 /// component never mutates game state — it only explains *why* the piece moved,
-/// which a plain capture animation cannot express. Everything is drawn with
-/// canvas primitives (no extra assets) and the flight is integrated in
-/// [update] so no effect backlog can survive a teardown: [finished] always
-/// resolves, and [onRemove] resolves it early.
+/// which a plain capture animation cannot express. The body is drawn with canvas
+/// primitives (no image assets), and `assets/audio/rocket.mp3` is timed to the
+/// same 0.55 s flight and impact below, so one sample covers launch and blast.
+/// The flight is integrated in [update] so no effect backlog can survive a
+/// teardown: [finished] always resolves, and [onRemove] resolves it early.
 class RocketComponent extends PositionComponent {
   RocketComponent({
     required Vector2 from,
@@ -59,7 +60,7 @@ class RocketComponent extends PositionComponent {
     size = Vector2.all(rocketSize);
     _recomputeControl();
     _placeAt(0);
-    unawaited(AudioManager.playMoveSound());
+    unawaited(AudioManager.playRocketSound());
   }
 
   /// Arcs the flight away from the straight line so the rocket reads as a shot
