@@ -99,6 +99,60 @@ export class GamesService {
     return state;
   }
 
+  /**
+   * Creates a quick-match that is partially or fully filled with bots.
+   * Real players start disconnected (they will connect via socket),
+   * bots start connected so the game can start as soon as real players join.
+   * This method does NOT affect private rooms.
+   */
+  async createBotMatch(
+    players: Array<{ userId: string; team: ReturnType<typeof teamsForPlayerCount>[number]; isBot: boolean }>,
+    mode: GameMode,
+  ): Promise<AuthoritativeGameState> {
+    const required = this.playerCount(mode);
+    if (players.length !== required || new Set(players.map(p => p.userId)).size !== players.length) {
+      throw new BadRequestException('Incorrect number of unique players for bot match');
+    }
+    const gameId = randomUUID();
+    // Create base state with all players not connected
+    const basePlayers = players.map(p => ({ userId: p.userId, team: p.team }));
+    const state = this.engine.create(gameId, basePlayers, false, required);
+
+    // Mark bots as connected in state, real players as disconnected
+    for (const p of state.players) {
+      const meta = players.find(pl => pl.userId === p.userId);
+      if (meta?.isBot) {
+        p.connected = true;
+        p.disconnectedAt = null;
+      } else {
+        p.connected = false;
+        p.disconnectedAt = new Date().toISOString();
+      }
+    }
+
+    const now = new Date();
+    await this.prisma.game.create({
+      data: {
+        id: gameId,
+        mode,
+        status: GameStatus.WAITING,
+        state: state as unknown as Prisma.InputJsonValue,
+        participants: {
+          create: players.map(pl => ({
+            userId: pl.userId,
+            team: pl.team,
+            disconnectedAt: pl.isBot ? null : now,
+          })),
+        },
+      },
+    });
+
+    // Prime cache so bot service can find it immediately
+    await this.store.prime(state);
+
+    return state;
+  }
+
   async activeForUser(userId: string) {
     const participants = await this.prisma.gameParticipant.findMany({
       where: { userId, game: { status: { in: [GameStatus.WAITING, GameStatus.ACTIVE] } } },

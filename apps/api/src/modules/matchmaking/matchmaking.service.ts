@@ -1,14 +1,17 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { GameMode } from '@prisma/client';
 import { RedisService } from '../../redis/redis.service';
 import { GamesService } from '../games/games.service';
+import { BotService } from '../games/bot.service';
+import { teamsForPlayerCount } from '../games/domain/game-state';
 
-export interface MatchFound { gameId: string; userIds: string[]; socketIds: string[]; mode: GameMode }
+export interface MatchFound { gameId: string; userIds: string[]; socketIds: string[]; mode: GameMode; isBotMatch?: boolean }
 interface QueueMember { userId: string; socketId: string }
 
 @Injectable()
 export class MatchmakingService {
-  constructor(private readonly redis: RedisService, private readonly games: GamesService) {}
+  private readonly logger = new Logger(MatchmakingService.name);
+  constructor(private readonly redis: RedisService, private readonly games: GamesService, private readonly bots: BotService) {}
 
   async join(userId: string, socketId: string, mode: GameMode): Promise<MatchFound | null> {
     const size = mode === GameMode.ONLINE_2P ? 2 : mode === GameMode.ONLINE_4P ? 4 : 0;
@@ -99,4 +102,143 @@ export class MatchmakingService {
   }
 
   private queue(mode: GameMode): string { return `matchmaking:${mode}`; }
+
+  /**
+   * Called after 15 seconds of waiting. Pops up to `size` oldest waiting
+   * players for the given mode and fills the rest with Persian-named bots.
+   * If the requesting user is no longer queued (already matched/left),
+   * returns null and requeues any popped members.
+   */
+  async tryCreateBotMatch(requestingUserId: string, mode: GameMode): Promise<MatchFound | null> {
+    const size = mode === GameMode.ONLINE_2P ? 2 : mode === GameMode.ONLINE_4P ? 4 : 0;
+    if (!size) return null;
+    await this.redis.ensureConnected();
+    const key = this.queue(mode);
+
+    // Atomically pop up to size oldest members
+    const script = `
+      local count = tonumber(ARGV[1])
+      local members = redis.call('ZPOPMIN', KEYS[1], count)
+      return members
+    `;
+    const raw = await this.redis.client.eval(script, 1, key, size) as string[];
+    const popped: Array<{ member: string; score: number }> = [];
+    for (let i = 0; i < raw.length; i += 2) {
+      popped.push({ member: raw[i], score: Number(raw[i + 1]) });
+    }
+
+    if (!popped.length) return null;
+
+    const players = popped.map(({ member }) => this.parse(member)).filter((m): m is QueueMember => m != null);
+
+    // If requesting user not among popped, they were already matched elsewhere -> requeue and abort
+    if (!players.some(p => p.userId === requestingUserId)) {
+      await this.requeue(key, popped);
+      return null;
+    }
+
+    // Ensure unique userIds among popped (avoid duplicate user with multiple sockets)
+    const uniqueMap = new Map<string, QueueMember>();
+    for (const p of players) {
+      if (!uniqueMap.has(p.userId)) uniqueMap.set(p.userId, p);
+    }
+    const uniquePlayers = Array.from(uniqueMap.values());
+
+    // If duplicates were popped, requeue extras
+    if (uniquePlayers.length !== players.length) {
+      // Find duplicates to requeue
+      const seen = new Set<string>();
+      const toRequeue: Array<{ member: string; score: number }> = [];
+      for (const entry of popped) {
+        const parsed = this.parse(entry.member);
+        if (!parsed) continue;
+        if (seen.has(parsed.userId)) toRequeue.push(entry);
+        else seen.add(parsed.userId);
+      }
+      if (toRequeue.length) await this.requeue(key, toRequeue);
+    }
+
+    const realPlayers = uniquePlayers;
+    const botsNeeded = size - realPlayers.length;
+
+    if (botsNeeded < 0) {
+      // More real players than needed (should not happen), requeue excess
+      const excess = realPlayers.slice(size);
+      const excessEntries = popped.filter(e => {
+        const pm = this.parse(e.member);
+        return pm && excess.some(ex => ex.userId === pm.userId);
+      });
+      if (excessEntries.length) await this.requeue(key, excessEntries);
+      realPlayers.splice(size);
+    }
+
+    if (botsNeeded <= 0 && realPlayers.length < size) {
+      // Not enough players and no bots needed? Should not happen
+      await this.requeue(key, popped);
+      return null;
+    }
+
+    try {
+      const botInfos = botsNeeded > 0 ? await this.bots.createBots(botsNeeded) : [];
+
+      const seating = teamsForPlayerCount(size);
+      // Real players get first seats in order of waiting time (oldest first = already popped order)
+      // Bots fill remaining seats
+      const combined: Array<{ userId: string; team: ReturnType<typeof teamsForPlayerCount>[number]; isBot: boolean }> = [];
+
+      realPlayers.forEach((rp, idx) => {
+        combined.push({ userId: rp.userId, team: seating[idx], isBot: false });
+      });
+      botInfos.forEach((bot, idx) => {
+        combined.push({ userId: bot.userId, team: seating[realPlayers.length + idx], isBot: true });
+      });
+
+      // Shuffle? Keep seating order as is for deterministic teams
+
+      const state = await this.games.createBotMatch(combined, mode);
+
+      // Register bot game for AI loop
+      if (botInfos.length > 0) {
+        await this.bots.registerBotGame(state.gameId, botInfos);
+      }
+
+      // Cleanup redis keys for real players
+      const keysToDel: string[] = [];
+      for (const rp of realPlayers) {
+        keysToDel.push(`matchmaking:user:${rp.userId}`);
+        keysToDel.push(`matchmaking:socket:${rp.socketId}`);
+      }
+      if (keysToDel.length) await this.redis.client.del(...keysToDel);
+
+      // Also remove any leftover entries for these users in other mode queues (defensive)
+      for (const rp of realPlayers) {
+        await this.removeEntries((m) => m.userId === rp.userId && m.socketId !== rp.socketId);
+      }
+
+      this.logger.log(`Bot match created: ${state.gameId} mode=${mode} real=${realPlayers.length} bots=${botInfos.length}`);
+
+      return {
+        gameId: state.gameId,
+        userIds: combined.map(c => c.userId),
+        socketIds: realPlayers.map(r => r.socketId),
+        mode,
+        isBotMatch: botInfos.length > 0,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to create bot match for ${requestingUserId}: ${error instanceof Error ? error.message : 'unknown'}`);
+      // Requeue real players on failure
+      await this.requeue(key, popped);
+      throw error;
+    }
+  }
+
+  /** Check if user is still queued */
+  async isQueued(userId: string, mode: GameMode): Promise<boolean> {
+    await this.redis.ensureConnected();
+    const entries = await this.redis.client.zrange(this.queue(mode), 0, -1);
+    return entries.some(e => {
+      const m = this.parse(e);
+      return m?.userId === userId;
+    });
+  }
 }

@@ -6,11 +6,12 @@ import { GamesController } from './games.controller';
 import { GamesGateway } from './games.gateway';
 import { GamesService } from './games.service';
 import { GameLifecycleService } from './game-lifecycle.service';
+import { BotService } from './bot.service';
 
 @Module({
   imports: [AuthModule],
   controllers: [GamesController],
-  providers: [GamesService, GamesGateway, GameStateStore, GameLockService, GameLifecycleService],
-  exports: [GamesService],
+  providers: [GamesService, GamesGateway, GameStateStore, GameLockService, GameLifecycleService, BotService],
+  exports: [GamesService, GameStateStore, GameLockService, GamesGateway, BotService],
 })
 export class GamesModule {}
