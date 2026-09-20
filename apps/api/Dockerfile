@@ -1,6 +1,6 @@
-FROM node:22-alpine AS builder
+FROM node:22-bookworm-slim AS builder
 WORKDIR /workspace
-RUN apk add --no-cache openssl
+RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/admin/package.json apps/admin/package.json
@@ -8,10 +8,10 @@ RUN npm ci
 COPY apps/api apps/api
 RUN npm run prisma:generate --workspace=@manche-irani/api && npm run build --workspace=@manche-irani/api
 
-FROM node:22-alpine AS runtime
+FROM node:22-bookworm-slim AS runtime
 WORKDIR /workspace
 ENV NODE_ENV=production
-RUN apk add --no-cache openssl dumb-init
+RUN apt-get update && apt-get install -y --no-install-recommends openssl dumb-init && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /workspace/package.json /workspace/package-lock.json ./
 COPY --from=builder /workspace/node_modules ./node_modules
 COPY --from=builder /workspace/apps/api/package.json ./apps/api/package.json
