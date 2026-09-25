@@ -1,5 +1,5 @@
 import { Team } from '@prisma/client';
-import { FATTAH_TARGET_TOKEN_ID_MAX, GameRuleError, fattahTokenId } from './game-state';
+import { FATTAH_TARGET_TOKEN_ID_MAX, GameRuleError, fattahTokenId, teamsForPlayerCount } from './game-state';
 import { LudoEngine } from './ludo-engine';
 
 describe('LudoEngine', () => {
@@ -11,6 +11,54 @@ describe('LudoEngine', () => {
     expect(result.dice).toBe(5);
     expect(result.state.turnIndex).toBe(1);
     expect(result.state.phase).toBe('WAITING_ROLL');
+  });
+
+  describe.each([2, 4])('%i-player roll ownership', (count) => {
+    const seats = teamsForPlayerCount(count).map((team, index) => ({
+      team,
+      userId: index === 0 ? 'human' : `bot-${index}`,
+    }));
+
+    it('never lets a bot roll during the human turn', () => {
+      const dice = jest.fn(() => 6);
+      const engine = new LudoEngine(dice);
+      const before = engine.create('g1', seats);
+      expect(() => engine.roll(before, 'bot-1')).toThrow(GameRuleError);
+      expect(dice).not.toHaveBeenCalled();
+      expect(before.turnIndex).toBe(0);
+      expect(before.pendingRoll).toBeNull();
+    });
+
+    it('attributes blocked rolls to the roller, not the next turn', () => {
+      const engine = new LudoEngine(() => 5);
+      for (let index = 0; index < seats.length; index += 1) {
+        const before = engine.create('g1', seats);
+        before.turnIndex = index;
+        const result = engine.roll(before, seats[index].userId);
+        expect(result.rolledBy).toBe(seats[index].userId);
+        expect(result.dice).toBe(5);
+        expect(result.state.turnIndex).toBe((index + 1) % seats.length);
+        expect(result.state.players[result.state.turnIndex].userId).not.toBe(result.rolledBy);
+        expect(before.turnIndex).toBe(index);
+      }
+    });
+
+    it('attributes normal rolls and third sixes to the same actor', () => {
+      const engine = new LudoEngine(() => 6);
+      for (let index = 0; index < seats.length; index += 1) {
+        const before = engine.create('g1', seats);
+        before.turnIndex = index;
+        const normal = engine.roll(before, seats[index].userId);
+        expect(normal.rolledBy).toBe(seats[index].userId);
+        expect(normal.state.turnIndex).toBe(index);
+        expect(normal.state.phase).toBe('WAITING_MOVE');
+        before.players[index].consecutiveSixes = 2;
+        const third = engine.roll(before, seats[index].userId);
+        expect(third.rolledBy).toBe(seats[index].userId);
+        expect(third.dice).toBe(6);
+        expect(third.state.turnIndex).toBe((index + 1) % seats.length);
+      }
+    });
   });
 
   it('rejects another player moving on the current turn', () => {

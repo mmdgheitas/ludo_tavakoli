@@ -98,7 +98,10 @@ class OfflineSessionAdapter {
     target.clearTokenTrail();
     target.resizeTokensOnSpot(game.world);
     game.blinkBaseForTeam(target.currentPlayer.playerId);
-    game.syncDiceValue(snapshot.pendingDice);
+    game.syncDiceValue(
+      snapshot.pendingDice,
+      team: target.currentPlayer.playerId,
+    );
   }
 
   MatchPhase _domainPhase(LudoGameState phase) => switch (phase) {

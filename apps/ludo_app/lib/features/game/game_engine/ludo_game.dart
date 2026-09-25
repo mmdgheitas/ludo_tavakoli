@@ -34,7 +34,9 @@ class Ludo extends FlameGame
   late UpperController _upperController;
   late LowerController _lowerController;
 
-  PlayerTeam? _activeTeam;
+  // Keep direct ownership, including dice whose Flame add is still queued.
+  // Searching children can return the outgoing player's dice during a switch.
+  final Map<PlayerTeam, LudoDice> _diceByTeam = {};
 
   static final Map<PlayerTeam, TeamBaseConfig> _teamConfigs = {
     PlayerTeam.red: TeamBaseConfig(
@@ -120,69 +122,64 @@ class Ludo extends FlameGame
   }
 
   void blinkBaseForTeam(PlayerTeam team) {
-    // Phase can change without the team changing (roll -> move -> bonus roll).
-    // Reconcile pointers before the dice's same-team fast path.
+    // Reconcile pointer visibility independently from dice ownership, including
+    // same-team bonus rolls and switches before Flame's next lifecycle tick.
     if (GameState().state == LudoGameState.needRoll) {
       _upperController.showPointer(team);
       _lowerController.showPointer(team);
     } else {
       switchOffPointer();
     }
-    if (_activeTeam == team) return;
-    for (final t in PlayerTeam.values) {
-      _updateDiceForTeam(t, t == team);
-    }
-    _activeTeam = team;
+    _activateDiceForTeam(team);
   }
 
-  void _updateDiceForTeam(PlayerTeam team, bool shouldBlink) {
+  void _activateDiceForTeam(PlayerTeam team) {
+    final selected = _diceForTeam(team);
+    for (final dice in _diceByTeam.values) {
+      dice.setActive(identical(dice, selected));
+    }
+  }
+
+  LudoDice? _diceForTeam(PlayerTeam team) {
+    final existing = _diceByTeam[team];
+    if (existing != null) return existing;
+    final player = GameState().players
+        .where((player) => player.playerId == team)
+        .firstOrNull;
+    if (player == null) return null;
+
     final config = _teamConfigs[team]!;
-
-    // Dice configuration
-    final PositionComponent controller = config.isUpper ? _upperController : _lowerController;
+    final PositionComponent controller =
+        config.isUpper ? _upperController : _lowerController;
     final controllerComponents = controller.children.toList();
-    if (controllerComponents.length <= config.diceComponentIndex) return;
-
+    if (controllerComponents.length <= config.diceComponentIndex) return null;
     final diceBlock = controllerComponents[config.diceComponentIndex]
         .children
         .whereType<RectangleComponent>()
         .firstOrNull;
-    if (diceBlock == null) return;
+    if (diceBlock == null) return null;
+    final diceContainer =
+        diceBlock.children.whereType<RectangleComponent>().firstOrNull;
+    if (diceContainer == null) return null;
 
-    final diceContainer = diceBlock.children.whereType<RectangleComponent>().firstOrNull;
-    if (diceContainer == null) return;
-
-    if (shouldBlink) {
-      final ludoDice = diceContainer.children.whereType<LudoDice>().firstOrNull;
-      if (ludoDice == null) {
-        final playerList = GameState().players.where((p) => p.playerId == team).toList();
-        if (playerList.isNotEmpty) {
-          final player = playerList.first;
-          diceContainer.add(LudoDice(
-            player: player,
-            faceSize: diceBlock.size.x * 0.70,
-          ));
-        }
-      }
-    } else {
-      final ludoDice = diceContainer.children.whereType<LudoDice>().firstOrNull;
-      if (ludoDice != null) {
-        diceContainer.remove(ludoDice);
-      }
-    }
+    final dice = LudoDice(player: player, faceSize: diceBlock.size.x * 0.70);
+    _diceByTeam[team] = dice;
+    diceContainer.add(dice);
+    return dice;
   }
 
-  void syncDiceValue(int? value) {
+  void syncDiceValue(int? value, {required PlayerTeam team}) {
     if (value == null || value < 1 || value > 6) return;
-    final dice = _findDice(_upperController) ?? _findDice(_lowerController);
-    dice?.diceFace.updateDiceValue(value);
+    _diceForTeam(team)?.diceFace.updateDiceValue(value);
   }
 
-  void animateDiceValue(int value) {
+  void animateDiceValue(int value, {required PlayerTeam team}) {
     if (value < 1 || value > 6) return;
     switchOffPointer();
-    final dice = _findDice(_upperController) ?? _findDice(_lowerController);
-    dice?.showServerRoll(value);
+    // The roller can differ from both the currently displayed player and the
+    // incoming snapshot's turn (a no-move roll advances the server turn).
+    _activateDiceForTeam(team);
+    _diceByTeam[team]?.showServerRoll(value);
   }
 
   /// Cosmetic Fattah strike: a rocket flies from the attacker's home area to the
@@ -246,15 +243,6 @@ class Ludo extends FlameGame
     return Vector2(totalX / count, totalY / count);
   }
 
-  LudoDice? _findDice(Component root) {
-    if (root is LudoDice) return root;
-    for (final child in root.children) {
-      final result = _findDice(child);
-      if (result != null) return result;
-    }
-    return null;
-  }
-
   Future<void> startGame() async {
     await GameInitializer.run(this, teams);
   }
@@ -264,6 +252,7 @@ class Ludo extends FlameGame
 
   @override
   void onRemove() {
+    _diceByTeam.clear();
     GameState().detachGame(this);
     TokenManager().allTokens.clear();
     TileManager().clear();

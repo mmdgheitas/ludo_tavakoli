@@ -12,7 +12,8 @@ import 'package:ludo_app/features/game/game_engine/models/player.dart';
 import 'package:ludo_app/features/game/game_engine/models/ludo_game_state.dart';
 import 'package:ludo_app/features/game/game_engine/ludo_game.dart';
 
-class LudoDice extends PositionComponent with TapCallbacks, HasGameReference<Ludo> {
+class LudoDice extends PositionComponent
+    with TapCallbacks, HasGameReference<Ludo>, HasVisibility {
   static const double borderRadiusFactor =
       0.2; // Precomputed factor for border radius
   static const double innerSizeFactor =
@@ -28,6 +29,20 @@ class LudoDice extends PositionComponent with TapCallbacks, HasGameReference<Lud
   late final DiceFaceComponent diceFace; // The dice face showing dots
 
   final Player player;
+  RotateEffect? _rollEffect;
+
+  void setActive(bool active) {
+    isVisible = active;
+    if (!active) {
+      _rollEffect?.removeFromParent();
+      _rollEffect = null;
+      angle = 0;
+    }
+  }
+
+  @override
+  bool containsLocalPoint(Vector2 point) =>
+      isVisible && super.containsLocalPoint(point);
 
   void playSound() async {
     await AudioManager.playDiceSound();
@@ -35,6 +50,7 @@ class LudoDice extends PositionComponent with TapCallbacks, HasGameReference<Lud
 
   @override
   void onTapDown(TapDownEvent event) async {
+    if (!isVisible) return;
     final commandSink = GameState().commandSink;
     if (commandSink != null) {
       if (GameState().state == LudoGameState.needRoll &&
@@ -67,6 +83,7 @@ class LudoDice extends PositionComponent with TapCallbacks, HasGameReference<Lud
   }
 
   void showServerRoll(int value) {
+    if (!isVisible) return;
     diceFace.updateDiceValue(value);
     playSound();
     _applyDiceRollEffect();
@@ -74,19 +91,19 @@ class LudoDice extends PositionComponent with TapCallbacks, HasGameReference<Lud
 
   // Apply a 360-degree rotation effect to the dice
   FutureOr<void> _applyDiceRollEffect() {
-    add(
-      RotateEffect.by(
-        tau, // Full 360-degree rotation (2π radians)
-        EffectController(
-          duration: 0.3, // Reduced duration
-          curve: Curves.linear, // Simpler curve
-        ),
-      ),
+    _rollEffect?.removeFromParent();
+    angle = 0;
+    final effect = RotateEffect.by(
+      tau,
+      EffectController(duration: 0.3, curve: Curves.linear),
     );
+    _rollEffect = effect;
+    add(effect);
     return Future.value();
   }
 
   LudoDice({required this.faceSize, required this.player}) {
+    isVisible = false;
     // Pre-calculate values to avoid repeated calculations
     final double borderRadiusValue = faceSize * borderRadiusFactor;
     final double innerWidth = faceSize * innerSizeFactor;

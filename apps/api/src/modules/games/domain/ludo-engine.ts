@@ -57,7 +57,7 @@ export class LudoEngine {
     if (player.consecutiveSixes >= 3) {
       player.consecutiveSixes = 0;
       this.advanceTurn(state);
-      return { state: this.touch(state), dice: value };
+      return { state: this.touch(state), dice: value, rolledBy: userId };
     }
 
     const legalMoves = player.tokens.some((progress) => this.canMove(progress, value));
@@ -69,7 +69,7 @@ export class LudoEngine {
       state.pendingRoll = value;
       state.phase = 'WAITING_MOVE';
     }
-    return { state: this.touch(state), dice: value };
+    return { state: this.touch(state), dice: value, rolledBy: userId };
   }
 
   move(source: AuthoritativeGameState, userId: string, tokenIndex: number): MoveResult {

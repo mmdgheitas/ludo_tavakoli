@@ -234,7 +234,10 @@ class OnlineSessionAdapter {
     }
 
     game.blinkBaseForTeam(target.currentPlayer.playerId);
-    game.syncDiceValue(snapshot.pendingDice);
+    game.syncDiceValue(
+      snapshot.pendingDice,
+      team: target.currentPlayer.playerId,
+    );
 
     final rules = const LudoRules();
     final current = target.currentPlayer;

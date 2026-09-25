@@ -54,6 +54,8 @@ export interface AuthoritativeGameState {
 export interface MoveResult {
   state: AuthoritativeGameState;
   dice?: number;
+  /** Actor before a roll that may immediately advance turnIndex. */
+  rolledBy?: string;
   capturedToken?: { userId: string; tokenIndex: number };
   /**
    * Present only on an accepted rocket attack. `capturedToken` alone cannot

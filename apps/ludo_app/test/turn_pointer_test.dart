@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ludo_app/features/game/data/online_session_adapter.dart';
 import 'package:ludo_app/features/game/domain/game_snapshot.dart';
 import 'package:ludo_app/features/game/game_engine/components/controls/dice_pointer.dart';
+import 'package:ludo_app/features/game/game_engine/components/controls/ludo_dice.dart';
 import 'package:ludo_app/features/game/game_engine/components/controls/lower_controller.dart';
 import 'package:ludo_app/features/game/game_engine/components/controls/upper_controller.dart';
 import 'package:ludo_app/features/game/game_engine/ludo_game.dart';
@@ -143,7 +144,7 @@ void main() {
     expect(original.where((pointer) => pointer.isActive), isEmpty);
   });
 
-  test('same-team phase changes bypass the dice cache and hide clears all slots', () async {
+  test('same-team phase changes update pointers and hide clears all slots', () async {
     final game = await _loadGame(_teams);
     game.blinkBaseForTeam(PlayerTeam.red);
     await game.ready();
@@ -170,9 +171,89 @@ void main() {
     _expectActiveTeam(game, null);
   });
 
+  test('turn switches and dice sync before a Flame tick keep the right owner', () async {
+    final game = await _loadGame(_teams);
+    game.blinkBaseForTeam(PlayerTeam.red);
+    await game.ready();
+    final red = _tree(game).whereType<LudoDice>().single;
+    game.syncDiceValue(2, team: PlayerTeam.red);
+
+    // No await/update between switching and writing the roll. The outgoing
+    // upper dice used to be found before the incoming lower dice was mounted.
+    game.blinkBaseForTeam(PlayerTeam.blue);
+    game.syncDiceValue(5, team: PlayerTeam.blue);
+    expect(red.diceFace.diceValue, 2);
+    expect(red.isVisible, isFalse);
+    expect(red.containsLocalPoint(Vector2.zero()), isFalse);
+    await game.ready();
+    final blue = _tree(game).whereType<LudoDice>()
+        .singleWhere((dice) => dice.player.playerId == PlayerTeam.blue);
+    expect(blue.isVisible, isTrue);
+    expect(blue.diceFace.diceValue, 5);
+
+    // Returning to a team before a queued removal completed used to leave
+    // _activeTeam cached with no dice. Rapid changes must now reuse the dice.
+    game.blinkBaseForTeam(PlayerTeam.green);
+    game.blinkBaseForTeam(PlayerTeam.blue);
+    await game.ready();
+    expect(
+      _tree(game).whereType<LudoDice>().where((dice) => dice.isVisible),
+      [blue],
+    );
+    game.blinkBaseForTeam(PlayerTeam.red);
+    game.syncDiceValue(3, team: PlayerTeam.red);
+    await game.ready();
+    final visible = _tree(game).whereType<LudoDice>()
+        .where((dice) => dice.isVisible).toList();
+    expect(visible, [red]);
+    expect(red.diceFace.diceValue, 3);
+    expect(blue.diceFace.diceValue, 5);
+  });
+
+  test('a bot roll targets its own dice even while a different turn is drawn', () async {
+    final game = await _loadGame(_teams);
+    GameState().currentPlayerIndex = _teams.indexOf(PlayerTeam.blue);
+    game.blinkBaseForTeam(PlayerTeam.blue);
+    game.syncDiceValue(2, team: PlayerTeam.blue);
+    await game.ready();
+    final human = _tree(game).whereType<LudoDice>().single;
+
+    // Simulate an owned GREEN bot roll arriving while BLUE is still drawn.
+    game.animateDiceValue(4, team: PlayerTeam.green);
+    expect(human.isVisible, isFalse);
+    expect(human.diceFace.diceValue, 2);
+    await game.ready();
+    final bot = _tree(game).whereType<LudoDice>()
+        .singleWhere((dice) => dice.player.playerId == PlayerTeam.green);
+    expect(bot.isVisible, isTrue);
+    expect(bot.diceFace.diceValue, 4);
+    expect(bot.children.whereType<RotateEffect>(), hasLength(1));
+    expect(human.children.whereType<RotateEffect>(), isEmpty);
+    _expectActiveTeam(game, null);
+
+    // The cosmetic roll must not change gameplay turn or generate a roll.
+    expect(GameState().currentPlayer.playerId, PlayerTeam.blue);
+    game.update(0.15);
+    expect(bot.angle, greaterThan(0));
+    game.update(0.2);
+    game.blinkBaseForTeam(PlayerTeam.blue);
+    await game.ready();
+    expect(bot.isVisible, isFalse);
+    expect(bot.children.whereType<RotateEffect>(), isEmpty);
+    expect(human.isVisible, isTrue);
+    expect(human.diceFace.diceValue, 2);
+  });
+
   for (final playerCount in [2, 4]) {
     test('$playerCount-player online snapshots never accumulate turn arrows', () async {
-      final teams = _teams.take(playerCount).toList();
+      final teams = playerCount == 2
+          ? const [PlayerTeam.blue, PlayerTeam.green]
+          : const [
+              PlayerTeam.blue,
+              PlayerTeam.red,
+              PlayerTeam.green,
+              PlayerTeam.yellow,
+            ];
       final game = await _loadGame(teams);
       final original = _pointers(game);
       const adapter = OnlineSessionAdapter();
@@ -203,6 +284,15 @@ void main() {
           phase == MatchPhase.waitingForRoll ? teams[turn] : null,
         );
         expect(_pointers(game), orderedEquals(original));
+        final dice = _tree(game).whereType<LudoDice>().toList();
+        expect(dice.length, lessThanOrEqual(playerCount));
+        if (phase != MatchPhase.finished) {
+          final active = dice.where((dice) => dice.isVisible).single;
+          expect(active.player.playerId, teams[turn]);
+          if (phase == MatchPhase.waitingForMove) {
+            expect(active.diceFace.diceValue, 6);
+          }
+        }
       }
 
       for (var turn = 0; turn < 200; turn++) {

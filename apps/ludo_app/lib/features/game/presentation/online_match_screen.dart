@@ -11,6 +11,7 @@ import 'package:ludo_app/features/game/data/online_game_repository.dart';
 import 'package:ludo_app/features/game/data/online_session_adapter.dart';
 import 'package:ludo_app/features/game/domain/fattah.dart';
 import 'package:ludo_app/features/game/domain/game_snapshot.dart';
+import 'package:ludo_app/features/game/domain/online_dice_roll.dart';
 import 'package:ludo_app/features/game/domain/ludo_rules.dart';
 import 'package:ludo_app/features/game/game_engine/ludo_game.dart';
 import 'package:ludo_app/features/game/game_engine/managers/game_command_sink.dart';
@@ -52,7 +53,7 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
   int? _appliedVersion;
   int? _autoMoveVersion;
   final Set<int> _manualMoveVersions = <int>{};
-  DateTime? _holdSnapshotsUntil;
+  OnlineDiceRoll? _pendingRoll;
   Timer? _clock;
   Timer? _chatTimer;
   bool _ready = false;
@@ -170,11 +171,18 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
     if (mounted && _commandPending) setState(() => _commandPending = false);
   }
 
-  void _scheduleSnapshot(GameSnapshot snapshot, {FattahStrike? strike}) {
+  void _scheduleSnapshot(
+    GameSnapshot snapshot, {
+    FattahStrike? strike,
+    OnlineDiceRoll? roll,
+  }) {
     _pendingSnapshot = snapshot;
     // A superseding snapshot drops the pending rocket: the struck piece is
     // already home in the newer state, and the banner has been shown anyway.
     _pendingStrike = strike;
+    // Keep roll ownership paired with this exact snapshot. Coalescing an old
+    // snapshot must also discard its cosmetic roll, never reassign it.
+    _pendingRoll = roll;
     if (!_syncingSnapshot) unawaited(_drainSnapshots());
   }
 
@@ -184,20 +192,27 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
       while (mounted && _pendingSnapshot != null && _game != null) {
         final snapshot = _pendingSnapshot!;
         final strike = _pendingStrike;
+        final roll = _pendingRoll;
+        final game = _game!;
         _pendingSnapshot = null;
         _pendingStrike = null;
-        final hold = _holdSnapshotsUntil;
-        if (hold != null) {
-          final wait = hold.difference(DateTime.now());
-          if (wait > Duration.zero) await Future<void>.delayed(wait);
-          _holdSnapshotsUntil = null;
-        }
+        _pendingRoll = null;
         try {
+          // Serialize dice with board updates. Animating inside the socket
+          // callback raced an earlier move/turn update and used its dice.
+          if (roll != null) {
+            game.animateDiceValue(
+              roll.value,
+              team: PlayerTeam.values.byName(roll.team.name),
+            );
+            await Future<void>.delayed(const Duration(milliseconds: 340));
+          }
+          if (!mounted || !identical(_game, game)) return;
           // Only a consecutive version plays the offline-style movement
           // animation; gaps (initial sync, reconnects) fast-forward so
           // animation backlogs can never accumulate.
           final animate = _appliedVersion != null && snapshot.version == _appliedVersion! + 1;
-          await _adapter.apply(_game!, snapshot, myTurn: _isMyTurn, animate: animate, strike: strike);
+          await _adapter.apply(game, snapshot, myTurn: _isMyTurn, animate: animate, strike: strike);
           _appliedVersion = snapshot.version;
           unawaited(_maybeAutoMove(snapshot));
         } catch (_) {
@@ -212,7 +227,9 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
     } finally {
       _syncingSnapshot = false;
       final pending = _pendingSnapshot;
-      if (mounted && pending != null) _scheduleSnapshot(pending, strike: _pendingStrike);
+      if (mounted && pending != null) {
+        _scheduleSnapshot(pending, strike: _pendingStrike, roll: _pendingRoll);
+      }
     }
   }
 
@@ -429,13 +446,11 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
       if (winnerPlayer != null) winner = Team.values.byName((winnerPlayer['team'] as String).toLowerCase());
     }
 
-    // The server dice roll is animated exactly like an offline roll, and the
-    // resulting movement is held briefly so the dice lands before tokens hop.
+    // The banner can update immediately; the owned dice animation is queued
+    // with the snapshot below, never played against the currently drawn dice.
     final rolledDice = (outer['dice'] as num?)?.toInt();
     if (rolledDice != null) {
       _lastDice = rolledDice;
-      _holdSnapshotsUntil = DateTime.now().add(const Duration(milliseconds: 340));
-      if (_ready) _game?.animateDiceValue(rolledDice);
       _diceTimer?.cancel();
       _diceTimer = Timer(const Duration(seconds: 2), () {
         if (mounted) setState(() => _lastDice = null);
@@ -462,6 +477,12 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
       ],
     );
 
+    final roll = OnlineDiceRoll.fromEvent(
+      outer,
+      snapshot: snapshot,
+      players: players,
+      previous: _latest,
+    );
     _latest = snapshot;
     _players = players;
     _turnIndex = (rawState['turnIndex'] as num?)?.toInt() ?? 0;
@@ -471,7 +492,7 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
     _showReason(outer['reason']?.toString());
     final strike = _readFattahStrike(outer, players);
     if (_ready && _game != null && _phase != 'WAITING_PLAYERS') {
-      _scheduleSnapshot(snapshot, strike: strike);
+      _scheduleSnapshot(snapshot, strike: strike, roll: roll);
     }
     if (mounted) setState(() {});
   }
@@ -708,6 +729,7 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
     _fattahBannerTimer?.cancel();
     _pendingSnapshot = null;
     _pendingStrike = null;
+    _pendingRoll = null;
     _socket?.dispose();
     final game = _game;
     if (game != null) GameState().detachGame(game);
