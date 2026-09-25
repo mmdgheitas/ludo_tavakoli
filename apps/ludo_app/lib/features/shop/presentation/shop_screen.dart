@@ -144,10 +144,12 @@ class _ProductCard extends StatelessWidget {
               ],
             ),
           ),
-          FilledButton.tonalIcon(
-            onPressed: onPurchase,
-            icon: const Icon(Icons.monetization_on_rounded, size: 17),
-            label: Text(item.coinPrice?.toString() ?? '—'),
+          Expanded(
+            child: FilledButton.tonalIcon(
+              onPressed: onPurchase,
+              icon: const Icon(Icons.monetization_on_rounded, size: 17),
+              label: Text(item.coinPrice?.toString() ?? '—'),
+            ),
           ),
         ]),
       ),

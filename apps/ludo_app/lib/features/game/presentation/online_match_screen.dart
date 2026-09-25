@@ -636,7 +636,7 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
               ]),
             ),
             Flexible(
-              child: ListView.shrinkWrap(
+              child: ListView(
                 children: [
                   for (final target in targets)
                     ListTile(
@@ -720,109 +720,111 @@ class _OnlineMatchScreenState extends ConsumerState<OnlineMatchScreen> {
         ? 0
         : _players.where((player) => player['connected'] == false && player['forfeited'] != true).length;
     final finished = _latest?.phase == MatchPhase.finished;
-    return Scaffold(
-      backgroundColor: AppColors.cream,
-      appBar: AppBar(
-        backgroundColor: AppColors.ink,
-        title: Text(widget.playerCount == 4 ? 'مسابقه آنلاین ۴ نفره' : 'مسابقه آنلاین'),
-        actions: [
-          IconButton(onPressed: _showQuickChat, icon: const Icon(Icons.chat_bubble_outline_rounded)),
-          PopupMenuButton<String>(onSelected: (value) { if (value == 'forfeit') _confirmForfeit(); }, itemBuilder: (_) => const [PopupMenuItem(value: 'forfeit', child: Text('تسلیم و خروج'))]),
-        ],
-      ),
-      body: Stack(children: [
-        SafeArea(child: GameWidget(game: _game!)),
-        Positioned(top: 8, left: 12, right: 12, child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Chip(label: Text(_connectionLabel), avatar: Icon(_connectionLabel == 'آنلاین' ? Icons.cloud_done : Icons.cloud_off, size: 16)),
-          if (_phase != 'WAITING_PLAYERS' && !finished)
-            Chip(label: Text(_isMyTurn ? 'نوبت شما' : 'نوبت حریف'), avatar: Icon(_isMyTurn ? Icons.touch_app : Icons.hourglass_top, size: 16)),
-          if (_phase != 'WAITING_PLAYERS' && !finished) Chip(label: Text('$secondsLeft ثانیه'), avatar: const Icon(Icons.timer_outlined, size: 16)),
-        ])),
-        if (_fattahVisible)
-          Positioned(
-            bottom: 18, left: 18,
-            child: Tooltip(
-              message: _fattahEnabled ? 'موشک فتاح — $_fattahBalance بار باقی مانده' : 'موشک فتاح ندارید؛ برای خرید بزنید',
-              child: Material(
-                color: _fattahEnabled ? AppColors.coral : AppColors.muted,
-                borderRadius: BorderRadius.circular(30),
-                child: InkWell(
+    return SafeArea(
+      child: Scaffold(
+        backgroundColor: AppColors.cream,
+        appBar: AppBar(
+          backgroundColor: AppColors.ink,
+          title: Text(widget.playerCount == 4 ? 'مسابقه آنلاین ۴ نفره' : 'مسابقه آنلاین'),
+          actions: [
+            IconButton(onPressed: _showQuickChat, icon: const Icon(Icons.chat_bubble_outline_rounded)),
+            PopupMenuButton<String>(onSelected: (value) { if (value == 'forfeit') _confirmForfeit(); }, itemBuilder: (_) => const [PopupMenuItem(value: 'forfeit', child: Text('تسلیم و خروج'))]),
+          ],
+        ),
+        body: Stack(children: [
+          SafeArea(child: GameWidget(game: _game!)),
+          Positioned(top: 8, left: 12, right: 12, child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Chip(label: Text(_connectionLabel), avatar: Icon(_connectionLabel == 'آنلاین' ? Icons.cloud_done : Icons.cloud_off, size: 16)),
+            if (_phase != 'WAITING_PLAYERS' && !finished)
+              Chip(label: Text(_isMyTurn ? 'نوبت شما' : 'نوبت حریف'), avatar: Icon(_isMyTurn ? Icons.touch_app : Icons.hourglass_top, size: 16)),
+            if (_phase != 'WAITING_PLAYERS' && !finished) Chip(label: Text('$secondsLeft ثانیه'), avatar: const Icon(Icons.timer_outlined, size: 16)),
+          ])),
+          if (_fattahVisible)
+            Positioned(
+              bottom: 18, left: 18,
+              child: Tooltip(
+                message: _fattahEnabled ? 'موشک فتاح — $_fattahBalance بار باقی مانده' : 'موشک فتاح ندارید؛ برای خرید بزنید',
+                child: Material(
+                  color: _fattahEnabled ? AppColors.coral : AppColors.muted,
                   borderRadius: BorderRadius.circular(30),
-                  onTap: _onFattahPressed,
-                  child: Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Stack(clipBehavior: Clip.none, children: [
-                      const Icon(Icons.rocket_launch_rounded, color: Colors.white, size: 26),
-                      Positioned(
-                        top: -9, right: -11,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: _fattahEnabled ? AppColors.gold : AppColors.ink,
-                            borderRadius: BorderRadius.circular(11),
-                            border: Border.all(color: Colors.white, width: 1.2),
-                          ),
-                          child: Text(
-                            '$_fattahBalance',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w900,
-                              color: _fattahEnabled ? AppColors.ink : Colors.white,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(30),
+                    onTap: _onFattahPressed,
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Stack(clipBehavior: Clip.none, children: [
+                        const Icon(Icons.rocket_launch_rounded, color: Colors.white, size: 26),
+                        Positioned(
+                          top: -9, right: -11,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: _fattahEnabled ? AppColors.gold : AppColors.ink,
+                              borderRadius: BorderRadius.circular(11),
+                              border: Border.all(color: Colors.white, width: 1.2),
+                            ),
+                            child: Text(
+                              '$_fattahBalance',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w900,
+                                color: _fattahEnabled ? AppColors.ink : Colors.white,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ]),
+                      ]),
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        if (_commandPending) const Positioned.fill(child: AbsorbPointer(child: ColoredBox(color: Colors.transparent, child: Center(child: CircularProgressIndicator())))),
-        if (_phase == 'WAITING_PLAYERS') Positioned.fill(child: ColoredBox(color: const Color(0xCC151124), child: Center(child: Card(child: Padding(padding: const EdgeInsets.all(28), child: Column(mainAxisSize: MainAxisSize.min, children: [const CircularProgressIndicator(), const SizedBox(height: 20), Text('در انتظار تکمیل اتاق (${_players.length}/${widget.playerCount})', style: const TextStyle(fontWeight: FontWeight.w900)), const SizedBox(height: 8), const Text('بازیکنان در حال اتصال امن به مسابقه هستند', style: TextStyle(color: AppColors.muted))])))))),
-        if (disconnected > 0) Positioned(bottom: 18, left: 70, right: 18, child: Material(color: AppColors.coral, borderRadius: BorderRadius.circular(14), child: Padding(padding: const EdgeInsets.all(12), child: Text('$disconnected بازیکن قطع شده؛ ۶۰ ثانیه برای بازگشت فرصت دارد.', textAlign: TextAlign.center)))),
-        if (_lastDice != null) Positioned(top: 72, left: 30, right: 30, child: Center(child: Material(color: AppColors.gold, borderRadius: BorderRadius.circular(20), child: Padding(padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10), child: Text('تاس: $_lastDice', style: const TextStyle(color: AppColors.ink, fontSize: 18, fontWeight: FontWeight.w900)))))),
-        if (_fattahBanner != null) Positioned(top: 172, left: 24, right: 24, child: Center(child: Material(color: AppColors.coral, borderRadius: BorderRadius.circular(20), child: Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), child: Text(_fattahBanner!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w900)))))),
-        if (_chatText != null) Positioned(top: 120, left: 30, right: 30, child: Center(child: Material(color: AppColors.ink, borderRadius: BorderRadius.circular(20), child: Padding(padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12), child: Text(_chatText!, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)))))),
-        if (_localPlayerForfeited && !finished)
-          Positioned.fill(child: ColoredBox(color: const Color(0xAA151124), child: Center(child: Card(child: Padding(padding: const EdgeInsets.all(28), child: Column(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.flag_rounded, size: 50, color: AppColors.coral), const SizedBox(height: 12), const Text('از مسابقه خارج شدید', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)), const SizedBox(height: 18), FilledButton(onPressed: _exitMatch, child: const Text('بازگشت به خانه'))])))))),
-        if (finished)
-          Positioned.fill(child: ColoredBox(color: const Color(0xAA151124), child: Center(child: Card(child: Padding(padding: const EdgeInsets.all(28), child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(
-              _winnerId == null
-                  ? Icons.cancel_rounded
-                  : _winnerId == _myUserId
-                      ? Icons.emoji_events_rounded
-                      : Icons.flag_rounded,
-              size: 55,
-              color: _winnerId == null ? AppColors.muted : AppColors.gold,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              _winnerId == null
-                  ? 'مسابقه لغو شد'
-                  : _winnerId == _myUserId
-                      ? 'شما قهرمان شدید! 🎉'
-                      : 'مسابقه به پایان رسید',
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
-              textAlign: TextAlign.center,
-            ),
-            if (_winnerId != null && _winnerId != _myUserId && _latest?.winner != null) ...[
-              const SizedBox(height: 6),
-              Row(mainAxisSize: MainAxisSize.min, children: [
-                Container(width: 14, height: 14, decoration: BoxDecoration(color: _teamColors[_latest!.winner!], shape: BoxShape.circle)),
-                const SizedBox(width: 8),
-                Text('برنده: تیم ${_teamNamesFa[_latest!.winner!]}', style: const TextStyle(color: AppColors.muted, fontWeight: FontWeight.w700)),
-              ]),
-            ],
-            if (_winnerId == _myUserId) ...[
-              const SizedBox(height: 6),
-              const Text('جایزه سکه‌ای به کیف پول شما اضافه شد', style: TextStyle(color: AppColors.muted)),
-            ],
-            const SizedBox(height: 18),
-            FilledButton(onPressed: _exitMatch, child: const Text('بازگشت به خانه')),
-          ])))))),
-      ]),
+          if (_commandPending) const Positioned.fill(child: AbsorbPointer(child: ColoredBox(color: Colors.transparent, child: Center(child: CircularProgressIndicator())))),
+          if (_phase == 'WAITING_PLAYERS') Positioned.fill(child: ColoredBox(color: const Color(0xCC151124), child: Center(child: Card(child: Padding(padding: const EdgeInsets.all(28), child: Column(mainAxisSize: MainAxisSize.min, children: [const CircularProgressIndicator(), const SizedBox(height: 20), Text('در انتظار تکمیل اتاق (${_players.length}/${widget.playerCount})', style: const TextStyle(fontWeight: FontWeight.w900)), const SizedBox(height: 8), const Text('بازیکنان در حال اتصال امن به مسابقه هستند', style: TextStyle(color: AppColors.muted))])))))),
+          if (disconnected > 0) Positioned(bottom: 18, left: 70, right: 18, child: Material(color: AppColors.coral, borderRadius: BorderRadius.circular(14), child: Padding(padding: const EdgeInsets.all(12), child: Text('$disconnected بازیکن قطع شده؛ ۶۰ ثانیه برای بازگشت فرصت دارد.', textAlign: TextAlign.center)))),
+          if (_lastDice != null) Positioned(top: 72, left: 30, right: 30, child: Center(child: Material(color: AppColors.gold, borderRadius: BorderRadius.circular(20), child: Padding(padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10), child: Text('تاس: $_lastDice', style: const TextStyle(color: AppColors.ink, fontSize: 18, fontWeight: FontWeight.w900)))))),
+          if (_fattahBanner != null) Positioned(top: 172, left: 24, right: 24, child: Center(child: Material(color: AppColors.coral, borderRadius: BorderRadius.circular(20), child: Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), child: Text(_fattahBanner!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w900)))))),
+          if (_chatText != null) Positioned(top: 120, left: 30, right: 30, child: Center(child: Material(color: AppColors.ink, borderRadius: BorderRadius.circular(20), child: Padding(padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12), child: Text(_chatText!, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)))))),
+          if (_localPlayerForfeited && !finished)
+            Positioned.fill(child: ColoredBox(color: const Color(0xAA151124), child: Center(child: Card(child: Padding(padding: const EdgeInsets.all(28), child: Column(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.flag_rounded, size: 50, color: AppColors.coral), const SizedBox(height: 12), const Text('از مسابقه خارج شدید', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)), const SizedBox(height: 18), FilledButton(onPressed: _exitMatch, child: const Text('بازگشت به خانه'))])))))),
+          if (finished)
+            Positioned.fill(child: ColoredBox(color: const Color(0xAA151124), child: Center(child: Card(child: Padding(padding: const EdgeInsets.all(28), child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(
+                _winnerId == null
+                    ? Icons.cancel_rounded
+                    : _winnerId == _myUserId
+                        ? Icons.emoji_events_rounded
+                        : Icons.flag_rounded,
+                size: 55,
+                color: _winnerId == null ? AppColors.muted : AppColors.gold,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                _winnerId == null
+                    ? 'مسابقه لغو شد'
+                    : _winnerId == _myUserId
+                        ? 'شما قهرمان شدید! 🎉'
+                        : 'مسابقه به پایان رسید',
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+                textAlign: TextAlign.center,
+              ),
+              if (_winnerId != null && _winnerId != _myUserId && _latest?.winner != null) ...[
+                const SizedBox(height: 6),
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  Container(width: 14, height: 14, decoration: BoxDecoration(color: _teamColors[_latest!.winner!], shape: BoxShape.circle)),
+                  const SizedBox(width: 8),
+                  Text('برنده: تیم ${_teamNamesFa[_latest!.winner!]}', style: const TextStyle(color: AppColors.muted, fontWeight: FontWeight.w700)),
+                ]),
+              ],
+              if (_winnerId == _myUserId) ...[
+                const SizedBox(height: 6),
+                const Text('جایزه سکه‌ای به کیف پول شما اضافه شد', style: TextStyle(color: AppColors.muted)),
+              ],
+              const SizedBox(height: 18),
+              FilledButton(onPressed: _exitMatch, child: const Text('بازگشت به خانه')),
+            ])))))),
+        ]),
+      ),
     );
   }
 }

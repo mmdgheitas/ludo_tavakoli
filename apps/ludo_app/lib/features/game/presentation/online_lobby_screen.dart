@@ -95,7 +95,7 @@ class _OnlineLobbyScreenState extends ConsumerState<OnlineLobbyScreen> {
 
     final waitingText = _preparing && isSearching
         ? 'در حال ورود به مسابقه...'
-        : 'در انتظار ${widget.playerCount - 1} بازیکن دیگر • ${_secondsLeft} ثانیه';
+        : 'در انتظار ${widget.playerCount - 1} بازیکن دیگر • $_secondsLeft ثانیه';
 
     return Scaffold(
       appBar: AppBar(

@@ -32,7 +32,8 @@ final matchmakingProvider = StateNotifierProvider.autoDispose<MatchmakingControl
 enum MatchmakingStatus { idle, connecting, searching, found, error }
 
 class MatchmakingState {
-  const MatchmakingState(this.status, this.message, {this.gameId, this.playerCount});
+  const 
+  MatchmakingState(this.status, this.message, {this.gameId, this.playerCount});
   final MatchmakingStatus status;
   final String message;
   final String? gameId;

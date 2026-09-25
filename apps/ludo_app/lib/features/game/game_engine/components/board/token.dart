@@ -156,7 +156,7 @@ class TokenComponent extends PositionComponent with TapCallbacks, HasGameReferen
     final center = Offset(size.x / 2, size.y / 1.8);
 
     final paint = Paint()
-      ..color = Colors.black.withValues(alpha: 0.4)
+      ..color = Colors.white.withValues(alpha: 0.4)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.8;
 
