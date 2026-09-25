@@ -13,6 +13,7 @@ import 'package:ludo_app/features/game/game_engine/components/controls/ludo_dice
 import 'package:ludo_app/features/game/game_engine/components/overlays/rank_modal_component.dart';
 import 'package:ludo_app/features/game/game_engine/components/overlays/rocket_component.dart';
 import 'package:ludo_app/features/game/game_engine/models/player_team.dart';
+import 'package:ludo_app/features/game/game_engine/models/ludo_game_state.dart';
 import 'package:ludo_app/features/game/game_engine/managers/ludo_layout_config.dart';
 import 'package:ludo_app/features/game/game_engine/managers/game_initializer.dart';
 import 'package:ludo_app/features/game/game_engine/managers/tile_manager.dart';
@@ -112,12 +113,21 @@ class Ludo extends FlameGame
   }
 
   void switchOffPointer() {
-    final player = GameState().players[GameState().currentPlayerIndex];
-    _lowerController.hidePointer(player.playerId);
-    _upperController.hidePointer(player.playerId);
+    // Online snapshots can replace currentPlayerIndex before hiding the old
+    // turn. Clear every slot rather than relying on that mutable index.
+    _lowerController.hidePointers();
+    _upperController.hidePointers();
   }
 
   void blinkBaseForTeam(PlayerTeam team) {
+    // Phase can change without the team changing (roll -> move -> bonus roll).
+    // Reconcile pointers before the dice's same-team fast path.
+    if (GameState().state == LudoGameState.needRoll) {
+      _upperController.showPointer(team);
+      _lowerController.showPointer(team);
+    } else {
+      switchOffPointer();
+    }
     if (_activeTeam == team) return;
     for (final t in PlayerTeam.values) {
       _updateDiceForTeam(t, t == team);
@@ -152,11 +162,6 @@ class Ludo extends FlameGame
             player: player,
             faceSize: diceBlock.size.x * 0.70,
           ));
-          if (config.isUpper) {
-            _upperController.showPointer(player.playerId);
-          } else {
-            _lowerController.showPointer(player.playerId);
-          }
         }
       }
     } else {
@@ -175,6 +180,7 @@ class Ludo extends FlameGame
 
   void animateDiceValue(int value) {
     if (value < 1 || value > 6) return;
+    switchOffPointer();
     final dice = _findDice(_upperController) ?? _findDice(_lowerController);
     dice?.showServerRoll(value);
   }

@@ -78,6 +78,9 @@ class OnlineSessionAdapter {
         .indexWhere((player) => player.playerId.name == snapshot.teams[serverTurn].name);
     if (mappedTurn < 0) return;
 
+    // Stop the previous turn's indicator before changing the index or awaiting
+    // movement. This also clears it for finished games, which return early.
+    game.switchOffPointer();
     target.currentPlayerIndex = mappedTurn;
     if (snapshot.pendingDice != null) target.diceNumber = snapshot.pendingDice!;
     target.state = _enginePhase(snapshot.phase);

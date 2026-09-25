@@ -1,6 +1,5 @@
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
-import 'package:flame/effects.dart';
 import 'package:ludo_app/features/game/game_engine/models/player_team.dart';
 import 'package:ludo_app/features/game/game_engine/ludo_game.dart';
 import 'package:ludo_app/features/game/game_engine/managers/game_state.dart';
@@ -12,6 +11,8 @@ import 'package:ludo_app/features/game/game_engine/components/controls/controlle
 class LowerController extends RectangleComponent with HasGameReference<Ludo> {
   final RectangleComponent leftArrow;
   final RectangleComponent rightArrow;
+  late final DicePointer _leftPointer;
+  late final DicePointer _rightPointer;
 
   LowerController({
     required double width,
@@ -115,72 +116,40 @@ class LowerController extends RectangleComponent with HasGameReference<Ludo> {
       ],
     );
 
+    // Own one pointer per slot for the controller's entire lifetime. Toggling
+    // activity is synchronous, even before Flame mounts queued components.
+    _leftPointer = _createPointer(PointerDirection.left);
+    _rightPointer = _createPointer(PointerDirection.right);
+    leftArrow.add(_leftPointer);
+    rightArrow.add(_rightPointer);
+
     addAll([leftDice, leftToken, rightDice, rightToken, leftArrow, rightArrow]);
 
     this.position = position ?? Vector2.zero();
   }
 
-  // Displays a `DicePointer` with a movement effect on the `leftArrow` component
-  void showPointer(PlayerTeam playerId) {
-    final pointerX = size.x * 0.05;
-    final pointerY = (size.x * 0.20) * 0.2;
+  DicePointer _createPointer(PointerDirection direction) => DicePointer(
+        direction: direction,
+        size: size.x * 0.07,
+        travelDistance: size.x * 0.02,
+        paint: Paint()
+          ..color = Colors.green
+          ..style = PaintingStyle.fill,
+        position: Vector2(size.x * 0.05, size.x * 0.04),
+      );
 
-    if (playerId == PlayerTeam.blue) {
-      final leftPointer = DicePointer(
-        direction: PointerDirection.left,
-        size: size.x * 0.07, // Triangle bounding box size
-        paint: Paint()
-          ..color = Colors.green
-          ..style = PaintingStyle.fill,
-        position: Vector2(pointerX, pointerY),
-      );
-      // Add movement effect to the pointer
-      leftPointer.add(
-        MoveByEffect(
-          Vector2((size.x * 0.20) * 0.1, 0), // Move along the x-axis
-          EffectController(
-            duration: 0.2, // Takes 0.2 seconds to complete
-            reverseDuration: 0.2, // Move back in 0.2 seconds
-            infinite: true, // Repeats forever
-          ),
-        ),
-      );
-      leftArrow.add(leftPointer);
-    } else if (playerId == PlayerTeam.yellow) {
-      final rightPointer = DicePointer(
-        direction: PointerDirection.right,
-        size: size.x * 0.07, // Triangle bounding box size
-        paint: Paint()
-          ..color = Colors.green
-          ..style = PaintingStyle.fill,
-        position: Vector2(pointerX, pointerY),
-      );
-      rightPointer.add(
-        MoveByEffect(
-          Vector2((size.x * 0.20) * 0.1, 0), // Move along the x-axis
-          EffectController(
-            duration: 0.2, // Takes 0.2 seconds to complete
-            reverseDuration: 0.2, // Move back in 0.2 seconds
-            infinite: true, // Repeats forever
-          ),
-        ),
-      );
-      rightArrow.add(rightPointer);
-    }
+  void showPointer(PlayerTeam playerId) {
+    _leftPointer.isActive = playerId == PlayerTeam.blue;
+    _rightPointer.isActive = playerId == PlayerTeam.yellow;
   }
 
   void hidePointer(PlayerTeam playerId) {
-    if (playerId == PlayerTeam.blue) {
-      final pointer = leftArrow.children.whereType<DicePointer>().firstOrNull;
-      if (pointer != null) {
-        leftArrow.remove(pointer);
-      }
-    } else if (playerId == PlayerTeam.yellow) {
-      final pointer = rightArrow.children.whereType<DicePointer>().firstOrNull;
-      if (pointer != null) {
-        rightArrow.remove(pointer);
-      }
-    }
+    if (playerId == PlayerTeam.blue) _leftPointer.isActive = false;
+    if (playerId == PlayerTeam.yellow) _rightPointer.isActive = false;
+  }
+
+  void hidePointers() {
+    _leftPointer.isActive = false;
+    _rightPointer.isActive = false;
   }
 }
-
